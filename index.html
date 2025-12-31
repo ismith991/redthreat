@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RED THREAD // EVIDENCE ENGINE</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f; /* The Red Thread */
+      --shadow: 0 12px 30px rgba(0,0,0,.55);
+      --radius: 14px;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen Layout */
+    .app{
+      display:flex;
+      height:100vh;
+      width:100vw;
+    }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+      color:var(--text);
+      margin:0 0 14px 0;
+      font-size:14px;
+      opacity:.95;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:var(--radius);
+      padding:16px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+      margin-bottom:14px;
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{
+      display:flex;
+      gap:10px;
+    }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{
+      border-color:var(--red);
+      color:#fff;
+    }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      background:var(--bg);
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* “Live Preview” frame */
+    .preview{
+      max-width:1200px;
+      margin:0 auto;
+      background:linear-gradient(180deg, rgba(255,255,255,.02), rgba(255,255,255,.01));
+      border:1px solid #1a1a1a;
+      border-radius:18px;
+      box-shadow:var(--shadow);
+      padding:26px;
+      position:relative;
+    }
+
+    .topline{
+      height:2px;
+      width:100%;
+      background:linear-gradient(90deg, var(--red), rgba(211,47,47,.0));
+      border-radius:2px;
+      margin:14px 0 18px 0;
+      opacity:.85;
+    }
+
+    /* Header */
+    .header{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .title{
+      margin:0;
+      font-family:"Courier Prime", monospace;
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      font-size:28px;
+      line-height:1.15;
+    }
+
+    .subtitle{
+      margin:8px 0 0 0;
+      color:var(--muted);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+
+    .badge{
+      border:1px solid rgba(211,47,47,.85);
+      color:var(--red);
+      padding:8px 10px;
+      border-radius:10px;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+      white-space:nowrap;
+      background:rgba(211,47,47,.06);
+      align-self:flex-start;
+    }
+
+    /* Search */
+    .search{
+      margin-top:18px;
+    }
+    .search input{
+      width:100%;
+      border-radius:14px;
+      border:1px solid #2b2b2b;
+      background:#0e0e0e;
+      color:var(--text);
+      padding:14px 14px;
+      font-size:16px;
+      outline:none;
+    }
+    .search input:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 4px rgba(211,47,47,.16);
+    }
+    .search-meta{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      margin-top:10px;
+      color:var(--muted);
+      font-size:12px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid #2b2b2b;
+      border-radius:999px;
+      padding:6px 10px;
+      background:rgba(255,255,255,.02);
+    }
+    .pill i{ color:var(--red); }
+
+    /* Grid */
+    .grid{
+      margin-top:18px;
+      display:grid;
+      grid-template-columns:repeat(3, minmax(0, 1fr));
+      gap:14px;
+    }
+    @media (max-width: 1100px){
+      .grid{ grid-template-columns:repeat(2, minmax(0, 1fr)); }
+    }
+    @media (max-width: 740px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .grid{ grid-template-columns:1fr; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    .dept{
+      background:var(--card);
+      border:1px solid #2a2a2a;
+      border-radius:var(--radius);
+      padding:16px;
+      transition:border-color .15s ease, transform .15s ease, box-shadow .15s ease;
+      position:relative;
+      overflow:hidden;
+    }
+    .dept::after{
+      content:"";
+      position:absolute;
+      top:0; left:0;
+      width:100%;
+      height:1px;
+      background:rgba(211,47,47,.0);
+      transition:background .15s ease;
+    }
+    .dept:hover{
+      border-color:rgba(211,47,47,.85);
+      box-shadow:0 14px 30px rgba(0,0,0,.45);
+      transform:translateY(-2px);
+    }
+    .dept:hover::after{
+      background:linear-gradient(90deg, var(--red), rgba(211,47,47,0));
+    }
+
+    .dept-head{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .dept-head i{
+      color:var(--red);
+      font-size:18px;
+      width:20px;
+      text-align:center;
+    }
+    .dept-name{
+      font-family:"Courier Prime", monospace;
+      text-transform:uppercase;
+      letter-spacing:.10em;
+      font-size:14px;
+      margin:0;
+    }
+
+    .tools{
+      list-style:none;
+      padding:0;
+      margin:0;
+      border-top:1px solid #2b2b2b;
+      padding-top:10px;
+    }
+    .tools li{
+      margin:8px 0;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .tools li i{
+      color:#9a9a9a;
+      font-size:12px;
+      width:16px;
+      text-align:center;
+      opacity:.9;
+    }
+    .tools a{
+      color:var(--text);
+      text-decoration:none;
+      font-size:14px;
+      line-height:1.2;
+      border-bottom:1px dashed rgba(211,47,47,.0);
+      transition:color .12s ease, border-color .12s ease;
+    }
+    .tools a:hover{
+      color:#fff;
+      border-bottom-color:rgba(211,47,47,.7);
+    }
+
+    .hidden{ display:none !important; }
+
+    .match{
+      color:#fff !important;
+      border-bottom-color:rgba(211,47,47,.75) !important;
+    }
+
+    .empty-state{
+      margin-top:14px;
+      padding:16px;
+      border:1px solid #2b2b2b;
+      border-radius:14px;
+      background:rgba(255,255,255,.015);
+      color:var(--muted);
+      font-size:13px;
+    }
+    .empty-state strong{
+      color:var(--text);
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    /* Scrollbars (nice but subtle) */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar{ width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT PANEL: Control Center -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-folder-open"></i> Control Center</h2>
+
+      <div class="cc-card">
+        <label class="label" for="ccSearch">Quick Search (syncs to dashboard)</label>
+        <input id="ccSearch" class="input" type="text" placeholder="Type: DNA, Bank, Chat, Warrant..." />
+        <p class="tiny">
+          Tip: Search filters tool links across every department. Example: <b>DNA</b> leaves only <b>DNA Analysis</b>.
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <div style="height:10px"></div>
+
+        <button id="resetBtn" class="ghost">
+          <i class="fa-solid fa-rotate-left" style="margin-right:8px"></i>
+          Reset Search
+        </button>
+
+        <p class="tiny">
+          Export captures the entire <b>Live Preview</b> area (right panel) as a clean evidence snapshot.
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <p class="tiny" style="margin:0">
+          <span style="color:var(--red); font-weight:700; letter-spacing:.06em; font-family:'Courier Prime', monospace; text-transform:uppercase;">
+            Red Thread Standard
+          </span><br/>
+          No external CSS/JS files. Icons via FontAwesome. Noir/Database look. Relative tool links only.
+        </p>
+      </div>
+    </aside>
+
+    <!-- RIGHT PANEL: Live Preview -->
+    <main class="preview-wrap">
+      <section id="previewArea" class="preview" aria-label="Evidence Engine Dashboard Live Preview">
+        <div class="header">
+          <div>
+            <h1 class="title">RED THREAD // EVIDENCE ENGINE</h1>
+            <p class="subtitle">CASE FILE GENERATION SUITE v2.0</p>
+          </div>
+          <div class="badge">SECURE CONNECTION</div>
+        </div>
+
+        <div class="topline"></div>
+
+        <div class="search">
+          <input
+            id="searchInput"
+            type="text"
+            placeholder="Search for evidence type (e.g. 'DNA', 'Bank', 'Chat')..."
+            autocomplete="off"
+          />
+          <div class="search-meta">
+            <span class="pill"><i class="fa-solid fa-magnifying-glass"></i><span id="resultCount">Showing all tools</span></span>
+            <span class="pill"><i class="fa-solid fa-link"></i><span>All links are relative paths</span></span>
+          </div>
+        </div>
+
+        <div id="emptyState" class="empty-state hidden">
+          <strong>No matches.</strong> Try: DNA, Bank, Chat, Warrant, CCTV, Fingerprint, Crypto.
+        </div>
+
+        <div class="grid" id="deptGrid">
+
+          <!-- Dept 1 -->
+          <article class="dept" data-dept="CYBER & TELECOM">
+            <div class="dept-head">
+              <i class="fa-solid fa-shield-halved"></i>
+              <h3 class="dept-name">CYBER &amp; TELECOM</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/whatsapp.html">WhatsApp Chat</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/imessage.html">iMessage Thread</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/call-detail-record.html">Call Detail Record</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/browser-history.html">Browser History</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/router-log.html">Router Log</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/dark-web-forum.html">Dark Web Forum</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="cyber/ip-geolocation.html">IP Geolocation</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 2 -->
+          <article class="dept" data-dept="MEDICAL EXAMINER">
+            <div class="dept-head">
+              <i class="fa-solid fa-notes-medical"></i>
+              <h3 class="dept-name">MEDICAL EXAMINER</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="medical/autopsy-report.html">Autopsy Report</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="medical/toxicology-panel.html">Toxicology Panel</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="medical/dna-analysis.html">DNA Analysis</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="medical/dental-match.html">Dental Match</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="medical/psych-evaluation.html">Psych Evaluation</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="medical/hospital-er-form.html">Hospital ER Form</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 3 -->
+          <article class="dept" data-dept="PHYSICAL FORENSICS">
+            <div class="dept-head">
+              <i class="fa-solid fa-fingerprint"></i>
+              <h3 class="dept-name">PHYSICAL FORENSICS</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="forensics/fingerprint-card.html">Fingerprint Card</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="forensics/ballistics-report.html">Ballistics Report</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="forensics/blood-spatter-analysis.html">Blood Spatter Analysis</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="forensics/shoe-print-match.html">Shoe Print Match</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="forensics/fiber-analysis.html">Fiber Analysis</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="forensics/evidence-bag-tag.html">Evidence Bag Tag</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 4 -->
+          <article class="dept" data-dept="SURVEILLANCE & IOT">
+            <div class="dept-head">
+              <i class="fa-solid fa-video"></i>
+              <h3 class="dept-name">SURVEILLANCE &amp; IOT</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="iot/cctv-still-export.html">CCTV Still Export</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="iot/alpr-license-plate.html">ALPR (License Plate)</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="iot/uber-receipt.html">Uber Receipt</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="iot/building-access-log.html">Building Access Log</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="iot/smart-watch-data.html">Smart Watch Data</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 5 -->
+          <article class="dept" data-dept="FINANCIAL INTEL">
+            <div class="dept-head">
+              <i class="fa-solid fa-landmark"></i>
+              <h3 class="dept-name">FINANCIAL INTEL</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="finance/bank-statement.html">Bank Statement</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="finance/credit-card-receipt.html">Credit Card Receipt</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="finance/crypto-transaction.html">Crypto Transaction</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="finance/salary-slip.html">Salary Slip</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="finance/life-insurance-policy.html">Life Insurance Policy</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="finance/offshore-ledger.html">Offshore Ledger</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 6 -->
+          <article class="dept" data-dept="LEGAL & COURT">
+            <div class="dept-head">
+              <i class="fa-solid fa-gavel"></i>
+              <h3 class="dept-name">LEGAL &amp; COURT</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="legal/police-report-302.html">Police Report (302)</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="legal/search-warrant.html">Search Warrant</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="legal/arrest-record.html">Arrest Record</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="legal/witness-statement.html">Witness Statement</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="legal/divorce-decree.html">Divorce Decree</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 7 -->
+          <article class="dept" data-dept="PERSONAL EFFECTS">
+            <div class="dept-head">
+              <i class="fa-solid fa-suitcase"></i>
+              <h3 class="dept-name">PERSONAL EFFECTS</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="personal/diary-entry.html">Diary Entry</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="personal/hotel-bill.html">Hotel Bill</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="personal/boarding-pass.html">Boarding Pass</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="personal/sticky-note.html">Sticky Note</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="personal/yearbook-quote.html">Yearbook Quote</a></li>
+            </ul>
+          </article>
+
+          <!-- Dept 8 -->
+          <article class="dept" data-dept="RED THREAD LOGIC">
+            <div class="dept-head">
+              <i class="fa-solid fa-diagram-project"></i>
+              <h3 class="dept-name">RED THREAD LOGIC</h3>
+            </div>
+            <ul class="tools">
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="logic/event-timeline.html">Event Timeline</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="logic/relationship-map.html">Relationship Map</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="logic/cipher-code.html">Cipher Code</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="logic/safe-combination.html">Safe Combination</a></li>
+              <li><i class="fa-solid fa-angle-right"></i><a class="tool-link" href="logic/house-blueprint.html">House Blueprint</a></li>
+            </ul>
+          </article>
+
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // --------- Search Filtering (must hide all other links except matches) ----------
+    const searchInput = document.getElementById('searchInput');
+    const ccSearch = document.getElementById('ccSearch');
+    const deptCards = Array.from(document.querySelectorAll('.dept'));
+    const allLinks = Array.from(document.querySelectorAll('.tool-link'));
+    const resultCount = document.getElementById('resultCount');
+    const emptyState = document.getElementById('emptyState');
+
+    function normalize(s){ return (s || "").toLowerCase().trim(); }
+
+    function applySearch(raw){
+      const q = normalize(raw);
+
+      // Reset match styling
+      allLinks.forEach(a => a.classList.remove('match'));
+
+      if(!q){
+        // Show everything
+        deptCards.forEach(card => card.classList.remove('hidden'));
+        allLinks.forEach(a => a.closest('li').classList.remove('hidden'));
+        emptyState.classList.add('hidden');
+        resultCount.textContent = "Showing all tools";
+        return;
+      }
+
+      let visibleLinks = 0;
+
+      deptCards.forEach(card => {
+        const links = Array.from(card.querySelectorAll('.tool-link'));
+        let anyVisibleInCard = false;
+
+        links.forEach(a => {
+          const text = normalize(a.textContent);
+          const isMatch = text.includes(q);
+
+          const li = a.closest('li');
+          if(isMatch){
+            li.classList.remove('hidden');
+            a.classList.add('match');
+            anyVisibleInCard = true;
+            visibleLinks++;
+          }else{
+            li.classList.add('hidden');
+          }
+        });
+
+        if(anyVisibleInCard){
+          card.classList.remove('hidden');
+        }else{
+          card.classList.add('hidden');
+        }
+      });
+
+      if(visibleLinks === 0){
+        emptyState.classList.remove('hidden');
+        resultCount.textContent = "0 matches";
+      }else{
+        emptyState.classList.add('hidden');
+        resultCount.textContent = `${visibleLinks} match${visibleLinks === 1 ? "" : "es"} shown`;
+      }
+    }
+
+    // Sync searches (Control Center <-> Live Preview)
+    function syncInputs(from, to){
+      to.value = from.value;
+      applySearch(from.value);
+    }
+
+    searchInput.addEventListener('input', () => syncInputs(searchInput, ccSearch));
+    ccSearch.addEventListener('input', () => syncInputs(ccSearch, searchInput));
+
+    // Reset
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      searchInput.value = "";
+      ccSearch.value = "";
+      applySearch("");
+      searchInput.focus();
+    });
+
+    // --------- Export Right Panel (Download Evidence) ----------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const previewArea = document.getElementById('previewArea');
+
+    function timestamp(){
+      const d = new Date();
+      const pad = (n) => String(n).padStart(2,'0');
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      // Temporarily force crisp rendering
+      const canvas = await html2canvas(previewArea, {
+        backgroundColor: "#0a0a0a",
+        scale: scale,
+        useCORS: true
+      });
+
+      const fileBase = `evidence_engine_dashboard_${timestamp()}`;
+
+      if(type === "jpg"){
+        const dataURL = canvas.toDataURL("image/jpeg", 0.95);
+        const a = document.createElement('a');
+        a.href = dataURL;
+        a.download = `${fileBase}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      // PDF
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+
+      // Fit image to A4 page with margins
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 24;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
+      pdf.save(`${fileBase}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+
+    // Initial state
+    applySearch("");
+  </script>
+</body>
+</html>
