@@ -1,0 +1,856 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Hospital ER Form</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Form */
+      --paper:#fdfbf7;
+      --ink:#111;
+      --soft:#f3f5f7;
+      --rule:#e6e6e6;
+      --accent:#0b84ff; /* hospital blue */
+      --clip:#c7c7c7;
+      --clipDark:#9b9b9b;
+      --danger:#c62828;
+      --ok:#1b5e20;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:150px; resize:vertical; }
+
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* triage buttons in control */
+    .triageBtns{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:8px;
+      margin-top:8px;
+    }
+    .triBtn{
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 0;
+      font-weight:900;
+      cursor:pointer;
+      font-family:"Courier Prime", monospace;
+    }
+    .triBtn:hover{ border-color:var(--red); }
+    .triBtn.active{
+      border-color: var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+      background: rgba(211,47,47,.12);
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* Clipboard */
+    .clipboard{
+      width: 900px;
+      min-height: 1120px;
+      margin:0 auto;
+      position:relative;
+      padding-top:72px; /* space for clip */
+    }
+    .clip{
+      position:absolute;
+      top:0;
+      left:50%;
+      transform:translateX(-50%);
+      width:240px;
+      height:92px;
+      background:linear-gradient(180deg, var(--clip), var(--clipDark));
+      border:1px solid rgba(0,0,0,.25);
+      border-bottom-left-radius:18px;
+      border-bottom-right-radius:18px;
+      box-shadow:0 14px 25px rgba(0,0,0,.45);
+    }
+    .clip::before{
+      content:"";
+      position:absolute;
+      top:12px;
+      left:50%;
+      transform:translateX(-50%);
+      width:130px;
+      height:44px;
+      border-radius:12px;
+      background:rgba(255,255,255,.35);
+      border:1px solid rgba(0,0,0,.18);
+    }
+    .clip::after{
+      content:"";
+      position:absolute;
+      top:22px;
+      left:50%;
+      transform:translateX(-50%);
+      width:70px;
+      height:24px;
+      border-radius:999px;
+      border:2px solid rgba(0,0,0,.25);
+      background:rgba(0,0,0,.06);
+    }
+
+    .sheet{
+      background:var(--paper);
+      border-radius:14px;
+      border:1px solid #dcdcdc;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      color:var(--ink);
+    }
+    .pad{ padding:26px 28px 26px 28px; }
+
+    .header{
+      border-bottom:2px solid #111;
+      padding-bottom:12px;
+      margin-bottom:16px;
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:flex-start;
+    }
+    .hTitle{
+      margin:0;
+      font-family:"Playfair Display", serif;
+      font-size:18px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+    .hSub{
+      margin:6px 0 0 0;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      color:#333;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+    .metaRight{
+      text-align:right;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      color:#333;
+      letter-spacing:.06em;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.5fr 1fr;
+      gap:14px;
+    }
+
+    .box{
+      border:1px solid #dcdcdc;
+      border-radius:14px;
+      overflow:hidden;
+      background:#fff;
+    }
+    .boxHead{
+      background:var(--soft);
+      border-bottom:1px solid #e2e2e2;
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .boxHead .t{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+      color:#111;
+      font-family:"Courier Prime", monospace;
+    }
+    .boxBody{ padding:12px; }
+
+    .fieldGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px 12px;
+    }
+    .f{
+      border:1px solid #e2e2e2;
+      border-radius:12px;
+      padding:10px 10px;
+      background:#fff;
+    }
+    .fk{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#444;
+      margin-bottom:6px;
+    }
+    .fv{
+      font-weight:800;
+      font-size:14px;
+      color:#111;
+      min-height:18px;
+      word-break:break-word;
+    }
+
+    .triageRow{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      align-items:center;
+    }
+    .triPill{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid #dcdcdc;
+      background:#fff;
+      border-radius:999px;
+      padding:8px 10px;
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+      color:#111;
+    }
+    .triDot{
+      width:12px; height:12px;
+      border-radius:50%;
+      background:#bbb;
+      border:1px solid rgba(0,0,0,.25);
+    }
+    .triDot.l1{ background:#b71c1c; }
+    .triDot.l2{ background:#e53935; }
+    .triDot.l3{ background:#fb8c00; }
+    .triDot.l4{ background:#fdd835; }
+    .triDot.l5{ background:#43a047; }
+
+    .checks{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px 10px;
+      margin-top:10px;
+    }
+    .chk{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      border:1px solid #e2e2e2;
+      border-radius:12px;
+      padding:10px 10px;
+      background:#fff;
+      font-size:13px;
+    }
+    .cb{
+      width:16px;
+      height:16px;
+      border:2px solid #111;
+      border-radius:3px;
+      position:relative;
+      flex:0 0 auto;
+      background:#fff;
+    }
+    .cb.checked{
+      background:#111;
+    }
+    .cb.checked::after{
+      content:"";
+      position:absolute;
+      left:3px; top:1px;
+      width:6px; height:10px;
+      border-right:2px solid #fff;
+      border-bottom:2px solid #fff;
+      transform:rotate(40deg);
+    }
+
+    .bigField{
+      margin-top:12px;
+      border:1px solid #e2e2e2;
+      border-radius:14px;
+      overflow:hidden;
+      background:#fff;
+    }
+    .bigField .head{
+      background:var(--soft);
+      border-bottom:1px solid #e2e2e2;
+      padding:10px 12px;
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+    .bigField .body{
+      padding:12px;
+      font-size:14px;
+      line-height:1.55;
+      white-space:pre-wrap;
+      min-height:120px;
+    }
+
+    .foot{
+      margin-top:14px;
+      padding-top:12px;
+      border-top:1px solid var(--rule);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      color:#333;
+      letter-spacing:.06em;
+    }
+
+    @media (max-width: 1160px){
+      .clipboard{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns:1fr; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .clipboard{ padding-top:70px; }
+      .pad{ padding:18px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: Control Center -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-hospital"></i> Medical — Hospital ER Form</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="patientName">Patient Name</label>
+            <input id="patientName" class="input" type="text" value="DOE, JANE" />
+          </div>
+          <div>
+            <label class="label" for="patientId">MRN / ID</label>
+            <input id="patientId" class="input" type="text" value="GH-ER-009381" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="dob">DOB</label>
+            <input id="dob" class="input" type="text" value="1997-04-12" />
+          </div>
+          <div>
+            <label class="label" for="arrival">Arrival Time</label>
+            <input id="arrival" class="input" type="text" value="2025-12-30 02:14" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label">Triage Level (1–5)</label>
+        <div class="triageBtns" id="triageBtns">
+          <button class="triBtn" data-level="1">1</button>
+          <button class="triBtn" data-level="2">2</button>
+          <button class="triBtn" data-level="3">3</button>
+          <button class="triBtn" data-level="4">4</button>
+          <button class="triBtn active" data-level="5">5</button>
+        </div>
+
+        <p class="tiny">1 = resuscitation / immediate. 5 = non-urgent. (Just visual — no diagnosis logic.)</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label">Vitals</label>
+
+        <div class="row">
+          <div>
+            <label class="label" for="bp">BP</label>
+            <input id="bp" class="input" type="text" value="92/58" />
+          </div>
+          <div>
+            <label class="label" for="hr">HR</label>
+            <input id="hr" class="input" type="text" value="128" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="temp">Temp (°C)</label>
+            <input id="temp" class="input" type="text" value="37.9" />
+          </div>
+          <div>
+            <label class="label" for="o2">O2 Sat (%)</label>
+            <input id="o2" class="input" type="text" value="89" />
+          </div>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="complaint">Chief Complaint</label>
+        <input id="complaint" class="input" type="text" value="Gunshot wound to abdomen." />
+
+        <div style="height:10px"></div>
+
+        <label class="label">Intake Flags</label>
+        <div class="row">
+          <label style="flex:1; display:flex; align-items:center; gap:10px;">
+            <input id="flagBleeding" type="checkbox" style="accent-color: var(--red);" checked>
+            <span style="color:var(--text); font-size:13px;">Active Bleeding</span>
+          </label>
+          <label style="flex:1; display:flex; align-items:center; gap:10px;">
+            <input id="flagAllergy" type="checkbox" style="accent-color: var(--red);">
+            <span style="color:var(--text); font-size:13px;">Allergies Reported</span>
+          </label>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="notes">Nurse Notes</label>
+        <textarea id="notes" class="textarea">Patient arrived via private vehicle. Pale, diaphoretic. Complains of severe abdominal pain. Dressing applied. IV access attempted x2. MD paged.</textarea>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: Live Preview -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="clipboard" aria-label="Emergency Room triage form on clipboard">
+        <div class="clip" aria-hidden="true"></div>
+
+        <div class="sheet">
+          <div class="pad">
+
+            <div class="header">
+              <div>
+                <h1 class="hTitle">GENERAL HOSPITAL - EMERGENCY ADMISSION</h1>
+                <div class="hSub">Triage / Intake Form</div>
+              </div>
+              <div class="metaRight">
+                <div><b>FORM:</b> ER-TRIAGE-01</div>
+                <div><b>DEPT:</b> EMERGENCY</div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <!-- LEFT: Patient / Vitals / Complaint -->
+              <div class="box">
+                <div class="boxHead">
+                  <div class="t"><i class="fa-solid fa-user-injured" style="margin-right:8px;"></i>Patient Details</div>
+                  <div class="t" style="letter-spacing:.08em; font-size:11px; color:#444;">INTAKE</div>
+                </div>
+                <div class="boxBody">
+                  <div class="fieldGrid">
+                    <div class="f">
+                      <div class="fk">Patient Name</div>
+                      <div id="oPatientName" class="fv">DOE, JANE</div>
+                    </div>
+                    <div class="f">
+                      <div class="fk">MRN / ID</div>
+                      <div id="oPatientId" class="fv">GH-ER-009381</div>
+                    </div>
+                    <div class="f">
+                      <div class="fk">DOB</div>
+                      <div id="oDob" class="fv">1997-04-12</div>
+                    </div>
+                    <div class="f">
+                      <div class="fk">Arrival Time</div>
+                      <div id="oArrival" class="fv">2025-12-30 02:14</div>
+                    </div>
+                  </div>
+
+                  <div class="bigField" style="margin-top:12px;">
+                    <div class="head">Chief Complaint</div>
+                    <div id="oComplaint" class="body" style="min-height:68px;">Gunshot wound to abdomen.</div>
+                  </div>
+
+                  <div class="bigField">
+                    <div class="head">Nurse Notes</div>
+                    <div id="oNotes" class="body">Patient arrived via private vehicle. Pale, diaphoretic. Complains of severe abdominal pain. Dressing applied. IV access attempted x2. MD paged.</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- RIGHT: Triage / Vitals / Checkboxes -->
+              <div class="box">
+                <div class="boxHead">
+                  <div class="t"><i class="fa-solid fa-heart-pulse" style="margin-right:8px;"></i>Triage & Vitals</div>
+                  <div class="t" style="letter-spacing:.08em; font-size:11px; color:#444;">PRIORITY</div>
+                </div>
+                <div class="boxBody">
+                  <div class="triageRow" style="margin-bottom:10px;">
+                    <div class="triPill">
+                      <span id="triDot" class="triDot l5"></span>
+                      TRIAGE LEVEL: <span id="oTriage" style="margin-left:6px;">5</span>
+                    </div>
+                  </div>
+
+                  <div class="fieldGrid">
+                    <div class="f">
+                      <div class="fk">BP</div>
+                      <div id="oBp" class="fv">92/58</div>
+                    </div>
+                    <div class="f">
+                      <div class="fk">HR</div>
+                      <div id="oHr" class="fv">128</div>
+                    </div>
+                    <div class="f">
+                      <div class="fk">Temp (°C)</div>
+                      <div id="oTemp" class="fv">37.9</div>
+                    </div>
+                    <div class="f">
+                      <div class="fk">O2 Sat (%)</div>
+                      <div id="oO2" class="fv">89</div>
+                    </div>
+                  </div>
+
+                  <div class="checks">
+                    <div class="chk">
+                      <span id="cbBleeding" class="cb checked" aria-hidden="true"></span>
+                      Active Bleeding
+                    </div>
+                    <div class="chk">
+                      <span id="cbAllergy" class="cb" aria-hidden="true"></span>
+                      Allergies Reported
+                    </div>
+                  </div>
+
+                  <div class="bigField" style="margin-top:12px;">
+                    <div class="head">Triage Notes</div>
+                    <div id="oTriageNotes" class="body" style="min-height:110px;">Level set by triage nurse based on presentation and vitals. Use alongside clinical judgment.</div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="foot">
+              <div><b>STAMP:</b> INTAKE RECEIVED</div>
+              <div><b>PAGE:</b> 1 / 1</div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const patientName = document.getElementById('patientName');
+    const patientId = document.getElementById('patientId');
+    const dob = document.getElementById('dob');
+    const arrival = document.getElementById('arrival');
+
+    const bp = document.getElementById('bp');
+    const hr = document.getElementById('hr');
+    const temp = document.getElementById('temp');
+    const o2 = document.getElementById('o2');
+
+    const complaint = document.getElementById('complaint');
+    const notes = document.getElementById('notes');
+
+    const flagBleeding = document.getElementById('flagBleeding');
+    const flagAllergy = document.getElementById('flagAllergy');
+
+    // Outputs
+    const oPatientName = document.getElementById('oPatientName');
+    const oPatientId = document.getElementById('oPatientId');
+    const oDob = document.getElementById('oDob');
+    const oArrival = document.getElementById('oArrival');
+
+    const oBp = document.getElementById('oBp');
+    const oHr = document.getElementById('oHr');
+    const oTemp = document.getElementById('oTemp');
+    const oO2 = document.getElementById('oO2');
+
+    const oComplaint = document.getElementById('oComplaint');
+    const oNotes = document.getElementById('oNotes');
+
+    const cbBleeding = document.getElementById('cbBleeding');
+    const cbAllergy = document.getElementById('cbAllergy');
+
+    const triDot = document.getElementById('triDot');
+    const oTriage = document.getElementById('oTriage');
+
+    // Triage selection
+    let triageLevel = 5;
+    const triageBtns = document.getElementById('triageBtns');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function setTriage(level){
+      triageLevel = Number(level) || 5;
+
+      // UI active state
+      triageBtns.querySelectorAll('.triBtn').forEach(b=>{
+        b.classList.toggle('active', b.dataset.level === String(triageLevel));
+      });
+
+      // Output
+      oTriage.textContent = String(triageLevel);
+
+      // Dot class
+      triDot.className = 'triDot l' + triageLevel;
+    }
+
+    triageBtns.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.triBtn');
+      if(!btn) return;
+      setTriage(btn.dataset.level);
+    });
+
+    function updateChecks(){
+      cbBleeding.classList.toggle('checked', flagBleeding.checked);
+      cbAllergy.classList.toggle('checked', flagAllergy.checked);
+    }
+
+    function applyText(){
+      oPatientName.textContent = sanitize(patientName.value) || "—";
+      oPatientId.textContent = sanitize(patientId.value) || "—";
+      oDob.textContent = sanitize(dob.value) || "—";
+      oArrival.textContent = sanitize(arrival.value) || "—";
+
+      oBp.textContent = sanitize(bp.value) || "—";
+      oHr.textContent = sanitize(hr.value) || "—";
+      oTemp.textContent = sanitize(temp.value) || "—";
+      oO2.textContent = sanitize(o2.value) || "—";
+
+      oComplaint.textContent = sanitize(complaint.value) || "—";
+      oNotes.textContent = sanitize(notes.value) || "—";
+    }
+
+    [patientName, patientId, dob, arrival, bp, hr, temp, o2, complaint, notes].forEach(el=>{
+      el.addEventListener('input', applyText);
+      el.addEventListener('change', applyText);
+    });
+    [flagBleeding, flagAllergy].forEach(el=>{
+      el.addEventListener('change', updateChecks);
+    });
+
+    // Init
+    setTriage(5);
+    applyText();
+    updateChecks();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `hospital_er_form_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

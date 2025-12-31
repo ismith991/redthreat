@@ -1,0 +1,726 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Bank Statement</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111;
+      --hair:#dedede;
+      --zebra:#f9f9f9;
+      --box:#f6f7f9;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* A4 paper */
+    .paper{
+      width: 794px;     /* ~A4 at 96dpi */
+      min-height: 1123px;
+      margin:0 auto;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:28px;
+      font-family: Arial, Helvetica, sans-serif; /* requirement */
+      position:relative;
+    }
+
+    /* Bank header */
+    .top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:18px;
+      margin-bottom:16px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:flex-start;
+      gap:14px;
+    }
+
+    /* Geometric logo (CSS borders only) */
+    .logo{
+      width:44px; height:44px;
+      position:relative;
+    }
+    .logo:before, .logo:after{
+      content:"";
+      position:absolute;
+      inset:0;
+      border:3px solid #111;
+      border-radius:10px;
+      transform: rotate(10deg);
+      opacity:.9;
+    }
+    .logo:after{
+      inset:8px;
+      border-width:3px;
+      transform: rotate(-10deg);
+      opacity:.75;
+    }
+
+    .bankName{
+      font-family:"Playfair Display", serif; /* requirement */
+      font-weight:700;
+      letter-spacing:.02em;
+      font-size:28px;
+      margin:0;
+      line-height:1.05;
+    }
+    .bankSub{
+      margin:6px 0 0 0;
+      color:#333;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+    }
+
+    /* Summary box */
+    .summary{
+      width:290px;
+      border:1px solid var(--hair);
+      background:var(--box);
+      border-radius:10px;
+      padding:12px;
+      font-size:12px;
+    }
+    .summaryTitle{
+      font-weight:800;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      margin-bottom:10px;
+      color:#222;
+    }
+    .sumGrid{
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:8px 10px;
+      align-items:center;
+    }
+    .sumGrid .k{ color:#444; }
+    .sumGrid .v{ font-weight:800; color:#111; }
+
+    /* Account block */
+    .acct{
+      border-top:2px solid #111;
+      border-bottom:1px solid var(--hair);
+      padding:12px 0;
+      margin-bottom:14px;
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      font-size:12px;
+    }
+    .acct strong{ font-weight:800; }
+    .acct .right{ text-align:right; }
+    .muted{ color:#444; }
+
+    /* Ledger table */
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    thead th{
+      text-align:left;
+      border-bottom:2px solid #111;
+      padding:8px 8px;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#111;
+    }
+    tbody td{
+      border-bottom:1px solid var(--hair);
+      padding:8px 8px;
+      vertical-align:top;
+    }
+    tbody tr:nth-child(even){
+      background: var(--zebra);
+    }
+
+    .num{ text-align:right; white-space:nowrap; }
+    .desc{ width: 46%; }
+
+    .empty{
+      color:#666;
+      font-size:12px;
+      padding:14px 8px;
+      text-align:center;
+    }
+
+    .foot{
+      position:absolute;
+      left:28px;
+      right:28px;
+      bottom:18px;
+      font-size:11px;
+      color:#444;
+      border-top:1px solid var(--hair);
+      padding-top:10px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .paper{ width:100%; min-height:auto; }
+      .summary{ width:100%; }
+      .top{ flex-direction:column; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-building-columns"></i> Financial Intel — Bank Statement</h2>
+
+      <div class="cc-card">
+        <label class="label" for="acctName">Account Name</label>
+        <input id="acctName" class="input" type="text" value="ACCOUNT HOLDER" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="acctNo">Account Number</label>
+            <input id="acctNo" class="input" type="text" value="•••• 0000" />
+          </div>
+          <div>
+            <label class="label" for="period">Statement Period</label>
+            <input id="period" class="input" type="text" value="Nov 1 - Nov 30" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="begBal">Beginning Balance</label>
+        <input id="begBal" class="input" type="text" value="52450.00" />
+
+        <p class="tiny">No fixed “story” transactions anymore. Start clean, add your own. Amount: negative = Debit, positive = Credit.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="txDate">Date</label>
+            <input id="txDate" class="input" type="text" value="Nov 05" />
+          </div>
+          <div>
+            <label class="label" for="txAmt">Amount</label>
+            <input id="txAmt" class="input" type="text" value="-42.18" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="txDesc">Description</label>
+        <input id="txDesc" class="input" type="text" value="MERCHANT / TRANSFER DESCRIPTION" />
+
+        <div style="height:12px"></div>
+
+        <button id="addTx" class="btn">
+          <i class="fa-solid fa-plus" style="margin-right:8px;"></i>
+          Add Transaction
+        </button>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="demoTx" class="btnGhost">
+            <i class="fa-solid fa-bolt" style="margin-right:8px;"></i>
+            Add Random Demo (8)
+          </button>
+          <button id="clearTx" class="btnGhost">
+            <i class="fa-solid fa-trash" style="margin-right:8px;"></i>
+            Clear
+          </button>
+        </div>
+
+        <p class="tiny">Demo creates varied amounts + varied descriptions (no repeated “PAYROLL DIRECT DEP” style defaults).</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Bank statement preview">
+
+        <div class="top">
+          <div class="brand">
+            <div class="logo" aria-hidden="true"></div>
+            <div>
+              <h1 class="bankName">NATIONAL TRUST BANK</h1>
+              <div class="bankSub">Monthly Statement</div>
+            </div>
+          </div>
+
+          <div class="summary" aria-label="Summary box">
+            <div class="summaryTitle">Account Summary</div>
+            <div class="sumGrid">
+              <div class="k">Beginning Balance</div><div class="v" id="begOut">$0.00</div>
+              <div class="k">Total Deposits</div><div class="v" id="depOut">$0.00</div>
+              <div class="k">Total Withdrawals</div><div class="v" id="wdOut">$0.00</div>
+              <div class="k">Ending Balance</div><div class="v" id="endOut">$0.00</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="acct">
+          <div>
+            <div><strong>Account Name:</strong> <span id="nameOut">—</span></div>
+            <div class="muted" style="margin-top:4px;"><strong>Account Number:</strong> <span id="noOut">—</span></div>
+          </div>
+          <div class="right">
+            <div><strong>Statement Period:</strong> <span id="periodOut">—</span></div>
+            <div class="muted" style="margin-top:4px;"><strong>Prepared:</strong> <span id="prepOut">Generated</span></div>
+          </div>
+        </div>
+
+        <table aria-label="Transaction ledger">
+          <thead>
+            <tr>
+              <th style="width:90px;">Date</th>
+              <th class="desc">Description</th>
+              <th style="width:110px; text-align:right;">Debit</th>
+              <th style="width:110px; text-align:right;">Credit</th>
+              <th style="width:120px; text-align:right;">Balance</th>
+            </tr>
+          </thead>
+          <tbody id="ledger"></tbody>
+        </table>
+
+        <div class="foot">
+          <div>Customer Service: 1-800-000-0000</div>
+          <div>Page 1 of 1</div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const acctName = document.getElementById('acctName');
+    const acctNo = document.getElementById('acctNo');
+    const period = document.getElementById('period');
+    const begBal = document.getElementById('begBal');
+
+    const txDate = document.getElementById('txDate');
+    const txDesc = document.getElementById('txDesc');
+    const txAmt = document.getElementById('txAmt');
+    const addTx = document.getElementById('addTx');
+    const demoTx = document.getElementById('demoTx');
+    const clearTx = document.getElementById('clearTx');
+
+    // Outputs
+    const nameOut = document.getElementById('nameOut');
+    const noOut = document.getElementById('noOut');
+    const periodOut = document.getElementById('periodOut');
+
+    const begOut = document.getElementById('begOut');
+    const depOut = document.getElementById('depOut');
+    const wdOut = document.getElementById('wdOut');
+    const endOut = document.getElementById('endOut');
+
+    const ledger = document.getElementById('ledger');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function parseMoney(s){
+      const n = Number(String(s).replace(/[$,]/g,'').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function fmtMoney(n){
+      const v = Number(n);
+      if(!Number.isFinite(v)) return "$0.00";
+      const abs = Math.abs(v);
+      return "$" + abs.toFixed(2);
+    }
+
+    // Transactions: {date, desc, amt}  amt: negative = debit, positive = credit
+    let txs = [];
+
+    function updateHeader(){
+      nameOut.textContent = sanitize(acctName.value) || "—";
+      noOut.textContent = sanitize(acctNo.value) || "—";
+      periodOut.textContent = sanitize(period.value) || "—";
+    }
+
+    function renderEmptyRowIfNeeded(){
+      if(txs.length !== 0) return;
+      ledger.innerHTML = `<tr><td class="empty" colspan="5">No transactions yet. Add entries from the Control Center.</td></tr>`;
+    }
+
+    function recalc(){
+      const beginningBalance = parseMoney(begBal.value);
+
+      let deposits = 0;
+      let withdrawals = 0;
+
+      txs.forEach(t=>{
+        if(t.amt >= 0) deposits += t.amt;
+        else withdrawals += Math.abs(t.amt);
+      });
+
+      // Running balance
+      let bal = beginningBalance;
+
+      // Render ledger
+      ledger.innerHTML = "";
+      if(txs.length === 0){
+        renderEmptyRowIfNeeded();
+      } else {
+        txs.forEach(t=>{
+          bal += t.amt;
+
+          const tr = document.createElement('tr');
+
+          const tdDate = document.createElement('td');
+          tdDate.textContent = t.date || "—";
+
+          const tdDesc = document.createElement('td');
+          tdDesc.textContent = t.desc || "—";
+
+          const tdDebit = document.createElement('td');
+          tdDebit.className = "num";
+          tdDebit.textContent = t.amt < 0 ? fmtMoney(t.amt) : "";
+
+          const tdCredit = document.createElement('td');
+          tdCredit.className = "num";
+          tdCredit.textContent = t.amt >= 0 ? fmtMoney(t.amt) : "";
+
+          const tdBal = document.createElement('td');
+          tdBal.className = "num";
+          tdBal.textContent = (bal < 0 ? "-" : "") + fmtMoney(bal);
+
+          tr.appendChild(tdDate);
+          tr.appendChild(tdDesc);
+          tr.appendChild(tdDebit);
+          tr.appendChild(tdCredit);
+          tr.appendChild(tdBal);
+
+          ledger.appendChild(tr);
+        });
+      }
+
+      // Summary
+      begOut.textContent = (beginningBalance < 0 ? "-" : "") + fmtMoney(beginningBalance);
+      depOut.textContent = fmtMoney(deposits);
+      wdOut.textContent = fmtMoney(withdrawals);
+      const ending = beginningBalance + deposits - withdrawals;
+      endOut.textContent = (ending < 0 ? "-" : "") + fmtMoney(ending);
+    }
+
+    function addTransaction(date, desc, amt){
+      const n = parseMoney(amt);
+      txs.push({
+        date: sanitize(date),
+        desc: sanitize(desc) || "TRANSACTION",
+        amt: n
+      });
+      recalc();
+    }
+
+    addTx.addEventListener('click', ()=>{
+      addTransaction(txDate.value, txDesc.value, txAmt.value);
+    });
+
+    clearTx.addEventListener('click', ()=>{
+      txs = [];
+      recalc();
+    });
+
+    // Random demo generator (varied, not “same story”)
+    function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+    function randMoney(min, max){
+      const v = Math.random() * (max - min) + min;
+      return +(v.toFixed(2));
+    }
+    function randDate(){
+      const days = ["Nov 01","Nov 02","Nov 03","Nov 05","Nov 07","Nov 09","Nov 11","Nov 14","Nov 18","Nov 21","Nov 24","Nov 28","Nov 30"];
+      return pick(days);
+    }
+    function makeUniqueDescriptions(count){
+      const merchants = [
+        "GROCERY MARKET", "COFFEE HOUSE", "PHARMACY", "PARKING GARAGE", "ONLINE SUBSCRIPTION",
+        "ELECTRONICS STORE", "HARDWARE SUPPLY", "BOOKSTORE", "FUEL STATION", "RESTAURANT",
+        "TRANSFER TO SAVINGS", "TRANSFER FROM SAVINGS", "UTILITY PAYMENT", "MOBILE PAYMENT",
+        "ATM WITHDRAWAL", "RIDE SHARE", "HOTEL CHARGE", "AIRLINE TICKET", "MEDICAL BILL"
+      ];
+      const places = ["PORTLAND OR","SEATTLE WA","SAN JOSE CA","DENVER CO","MIAMI FL","BOSTON MA","AUSTIN TX","CHICAGO IL"];
+      const used = new Set();
+      const out = [];
+      while(out.length < count){
+        const label = `${pick(merchants)} - ${pick(places)}`;
+        if(used.has(label)) continue;
+        used.add(label);
+        out.push(label);
+      }
+      return out;
+    }
+
+    demoTx.addEventListener('click', ()=>{
+      const descs = makeUniqueDescriptions(8);
+      for(let i=0;i<8;i++){
+        const isCredit = Math.random() < 0.25; // fewer credits than debits
+        const amount = isCredit ? randMoney(150, 3200) : -randMoney(8, 420);
+        addTransaction(randDate(), descs[i], amount);
+      }
+    });
+
+    // Live update header + beginning balance
+    [acctName, acctNo, period].forEach(el=>{
+      el.addEventListener('input', updateHeader);
+      el.addEventListener('change', updateHeader);
+    });
+    begBal.addEventListener('input', recalc);
+    begBal.addEventListener('change', recalc);
+
+    updateHeader();
+    recalc(); // start clean (no seeded transactions)
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `bank_statement_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

@@ -1,0 +1,1163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Relationship Map</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Board */
+      --boardEdge:#2b1a10;
+      --boardEdge2:#1d120c;
+      --cork1:#8c5b3a;
+      --cork2:#7b4f33;
+      --cork3:#9a6a45;
+
+      --string:#d32f2f;
+      --stringGlow: rgba(211,47,47,.35);
+
+      --nodeRing: rgba(255,255,255,.18);
+      --nodeBg: rgba(0,0,0,.35);
+
+      --tape:#efe7d5;
+      --tapeInk:#1a1a1a;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:340px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin:0 0 12px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:13px;
+    }
+    .cc-title .left{ display:flex; align-items:center; gap:10px; }
+    .cc-title i{ color:var(--red); }
+
+    .cc-badge{
+      border:1px solid rgba(211,47,47,.65);
+      color:var(--red);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:10px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .cc-badge .dot{
+      width:8px; height:8px; border-radius:50%;
+      background:var(--red);
+      box-shadow:0 0 12px rgba(211,47,47,.65);
+    }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:12px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:11px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input[type="file"]{ padding:10px 12px; }
+    .textarea{ min-height:84px; resize:vertical; }
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+    .divider{ height:1px; background:var(--line); margin:12px 0; opacity:.9; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.92), rgba(211,47,47,.76));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    .boardOuter{
+      width: 1100px;
+      max-width: 100%;
+      min-height: 760px;
+      border-radius:18px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      position:relative;
+      overflow:hidden;
+
+      /* wood frame */
+      background:
+        radial-gradient(900px 420px at 15% 10%, rgba(255,255,255,.06), transparent 55%),
+        linear-gradient(180deg, var(--boardEdge), var(--boardEdge2));
+      border:1px solid rgba(255,255,255,.06);
+      padding:22px;
+    }
+
+    .board{
+      position:relative;
+      width:100%;
+      min-height: 716px;
+      border-radius:14px;
+      overflow:hidden;
+      border:1px solid rgba(0,0,0,.55);
+
+      /* cork texture (pure CSS) */
+      background:
+        radial-gradient(900px 420px at 15% 10%, rgba(255,255,255,.10), transparent 55%),
+        radial-gradient(900px 420px at 85% 85%, rgba(0,0,0,.18), transparent 55%),
+        repeating-linear-gradient(0deg, rgba(255,255,255,.05) 0 1px, transparent 1px 7px),
+        repeating-linear-gradient(90deg, rgba(0,0,0,.03) 0 1px, transparent 1px 9px),
+        radial-gradient(circle at 20% 30%, var(--cork3), transparent 42%),
+        radial-gradient(circle at 75% 60%, var(--cork1), transparent 45%),
+        linear-gradient(180deg, var(--cork1), var(--cork2));
+    }
+
+    /* board header plate */
+    .plate{
+      position:absolute;
+      left:18px; right:18px;
+      top:16px;
+      z-index:3;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:14px;
+      padding:12px 14px;
+      border-radius:12px;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.10);
+      backdrop-filter: blur(2px);
+    }
+    .plate h1{
+      margin:0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:16px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:rgba(255,255,255,.92);
+    }
+    .plate h1 i{
+      color:var(--red);
+      filter:drop-shadow(0 0 10px rgba(211,47,47,.35));
+    }
+    .plate .sub{
+      margin:8px 0 0 0;
+      color:rgba(255,255,255,.80);
+      font-size:12px;
+      line-height:1.45;
+      max-width:620px;
+    }
+    .plate .stamp{
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:11px;
+      color:rgba(255,255,255,.88);
+      border:1px solid rgba(255,255,255,.18);
+      background:rgba(255,255,255,.05);
+      padding:8px 10px;
+      border-radius:999px;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+
+    /* Layout: 5 fixed positions */
+    .grid{
+      position:absolute;
+      left:0; right:0;
+      top:86px; bottom:0;
+      padding:26px 30px 28px;
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      grid-template-rows: 1fr 1fr 1fr;
+      gap:18px;
+      z-index:2;
+    }
+    .pos{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+    }
+
+    .pos.tl{ grid-column:1; grid-row:1; justify-content:flex-start; align-items:flex-start; }
+    .pos.tr{ grid-column:3; grid-row:1; justify-content:flex-end; align-items:flex-start; }
+    .pos.center{ grid-column:2; grid-row:2; }
+    .pos.bl{ grid-column:1; grid-row:3; justify-content:flex-start; align-items:flex-end; }
+    .pos.br{ grid-column:3; grid-row:3; justify-content:flex-end; align-items:flex-end; }
+
+    /* Node style */
+    .node{
+      width: 210px;
+      border-radius:18px;
+      background: rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.14);
+      box-shadow: 0 10px 22px rgba(0,0,0,.35);
+      padding:14px 12px 12px;
+      position:relative;
+      backdrop-filter: blur(1px);
+    }
+
+    /* pushpin */
+    .node:before{
+      content:"";
+      position:absolute;
+      top:-10px; left:50%;
+      width:14px; height:14px;
+      transform:translateX(-50%);
+      border-radius:50%;
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), rgba(255,255,255,.08) 45%, rgba(0,0,0,.55) 100%);
+      border:1px solid rgba(0,0,0,.35);
+      box-shadow: 0 6px 10px rgba(0,0,0,.35);
+    }
+    .node .pinStem{
+      position:absolute;
+      top:3px; left:50%;
+      width:2px; height:16px;
+      transform:translateX(-50%);
+      background:rgba(0,0,0,.35);
+      filter: blur(.1px);
+      opacity:.7;
+    }
+
+    .face{
+      width:86px; height:86px;
+      border-radius:50%;
+      margin:6px auto 10px;
+      border:2px solid rgba(255,255,255,.20);
+      background: rgba(0,0,0,.28);
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+    }
+    .face i{
+      color:rgba(255,255,255,.72);
+      font-size:28px;
+    }
+    .face img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      filter: grayscale(1) contrast(1.05);
+      display:block;
+    }
+
+    .role{
+      text-align:center;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:10px;
+      color:rgba(255,255,255,.72);
+      margin-bottom:6px;
+    }
+    .name{
+      text-align:center;
+      font-weight:900;
+      letter-spacing:.02em;
+      color:rgba(255,255,255,.92);
+      font-size:14px;
+      line-height:1.2;
+      word-break:break-word;
+    }
+
+    .victim .node{
+      border-color: rgba(211,47,47,.35);
+      box-shadow: 0 14px 28px rgba(0,0,0,.45), 0 0 24px rgba(211,47,47,.12);
+    }
+    .victim .node:before{
+      background: radial-gradient(circle at 30% 30%, rgba(255,255,255,.35), rgba(255,255,255,.08) 45%, rgba(0,0,0,.6) 100%);
+      outline: 2px solid rgba(211,47,47,.22);
+      box-shadow: 0 8px 16px rgba(0,0,0,.35), 0 0 18px rgba(211,47,47,.22);
+    }
+    .victim .role{ color: rgba(255,255,255,.85); }
+    .victim .role span{
+      padding:3px 8px;
+      border-radius:999px;
+      border:1px solid rgba(211,47,47,.35);
+      background: rgba(211,47,47,.10);
+      color: rgba(255,255,255,.92);
+    }
+
+    /* Overlay SVG for lines */
+    .strings{
+      position:absolute;
+      inset:0;
+      z-index:1;
+      pointer-events:none;
+    }
+    .strings line{
+      stroke: var(--string);
+      stroke-width: 3.2;
+      stroke-linecap: round;
+      filter: drop-shadow(0 0 6px var(--stringGlow));
+      opacity: .95;
+    }
+    .strings .shadowLine{
+      stroke: rgba(0,0,0,.28);
+      stroke-width: 6;
+      opacity:.35;
+      filter:none;
+    }
+
+    /* Relationship labels (tape) */
+    .relLabel{
+      position:absolute;
+      z-index:2;
+      padding:7px 10px;
+      border-radius:8px;
+      background: var(--tape);
+      color: var(--tapeInk);
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      border:1px solid rgba(0,0,0,.12);
+      box-shadow: 0 10px 18px rgba(0,0,0,.22);
+      transform-origin: center;
+      pointer-events:none;
+      white-space:nowrap;
+    }
+    .relLabel:before{
+      content:"";
+      position:absolute;
+      left:-8px;
+      top:50%;
+      transform:translateY(-50%);
+      width:10px;
+      height:10px;
+      border-radius:50%;
+      background: rgba(0,0,0,.10);
+      border:1px solid rgba(0,0,0,.10);
+    }
+
+    /* responsiveness */
+    @media (max-width: 1050px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .boardOuter{ width:100%; }
+      .node{ width:190px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <div class="cc-title">
+        <div class="left"><i class="fa-solid fa-network-wired"></i> Red Thread Logic — Relationship Map</div>
+        <div class="cc-badge"><span class="dot"></span> Secure Connection</div>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="caseTitleIn">Board Title</label>
+        <input id="caseTitleIn" class="input" type="text" value="RED THREAD // RELATIONSHIP MAP" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="caseSubIn">Board Notes (optional)</label>
+        <input id="caseSubIn" class="input" type="text" value="Corkboard reconstruction — suspects connected to victim by the red thread." />
+
+        <div class="divider"></div>
+
+        <label class="label" for="stringColorIn">String Color</label>
+        <div class="row">
+          <input id="stringColorIn" class="input" type="color" value="#d32f2f" />
+          <select id="stringThicknessIn" class="select">
+            <option value="2.4">Thin</option>
+            <option value="3.2" selected>Normal</option>
+            <option value="4.2">Thick</option>
+          </select>
+        </div>
+
+        <p class="tiny">This page includes photo upload inputs by default (for story flexibility).</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="victimNameIn">Central Person (Victim)</label>
+        <input id="victimNameIn" class="input" type="text" value="VICTIM: AVERY QUINN" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="victimPhotoIn">Victim Photo (Upload)</label>
+        <input id="victimPhotoIn" class="input" type="file" accept="image/*" />
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="s1NameIn">Suspect (Top Left)</label>
+            <input id="s1NameIn" class="input" type="text" value="CASEY VALE" />
+          </div>
+          <div>
+            <label class="label" for="s1RelIn">Relationship Label</label>
+            <input id="s1RelIn" class="input" type="text" value="EX-PARTNER" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <label class="label" for="s1PhotoIn">Suspect Photo (Upload)</label>
+        <input id="s1PhotoIn" class="input" type="file" accept="image/*" />
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="s2NameIn">Suspect (Top Right)</label>
+            <input id="s2NameIn" class="input" type="text" value="MORGAN REYES" />
+          </div>
+          <div>
+            <label class="label" for="s2RelIn">Relationship Label</label>
+            <input id="s2RelIn" class="input" type="text" value="BUSINESS PARTNER" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <label class="label" for="s2PhotoIn">Suspect Photo (Upload)</label>
+        <input id="s2PhotoIn" class="input" type="file" accept="image/*" />
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="s3NameIn">Suspect (Bottom Left)</label>
+            <input id="s3NameIn" class="input" type="text" value="RILEY PARK" />
+          </div>
+          <div>
+            <label class="label" for="s3RelIn">Relationship Label</label>
+            <input id="s3RelIn" class="input" type="text" value="NEIGHBOR" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <label class="label" for="s3PhotoIn">Suspect Photo (Upload)</label>
+        <input id="s3PhotoIn" class="input" type="file" accept="image/*" />
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="s4NameIn">Suspect (Bottom Right)</label>
+            <input id="s4NameIn" class="input" type="text" value="TAYLOR GRANT" />
+          </div>
+          <div>
+            <label class="label" for="s4RelIn">Relationship Label</label>
+            <input id="s4RelIn" class="input" type="text" value="SIBLING" />
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <label class="label" for="s4PhotoIn">Suspect Photo (Upload)</label>
+        <input id="s4PhotoIn" class="input" type="file" accept="image/*" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="demoBtn" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+            Demo Fill
+          </button>
+          <button id="clearPhotosBtn" class="btnGhost">
+            <i class="fa-solid fa-ban" style="margin-right:8px;"></i>
+            Clear Photos
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section class="boardOuter" id="captureArea" aria-label="Relationship map board">
+        <div class="board" id="board">
+          <div class="plate">
+            <div>
+              <h1><i class="fa-solid fa-thumbtack"></i> <span id="caseTitleOut">RED THREAD // RELATIONSHIP MAP</span></h1>
+              <p class="sub" id="caseSubOut">Corkboard reconstruction — suspects connected to victim by the red thread.</p>
+            </div>
+            <div class="stamp"><i class="fa-solid fa-lock"></i> CLASSIFIED BOARD</div>
+          </div>
+
+          <!-- SVG strings -->
+          <svg class="strings" id="strings" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true">
+            <!-- shadow lines behind -->
+            <line class="shadowLine" id="sh1" x1="0" y1="0" x2="0" y2="0"></line>
+            <line class="shadowLine" id="sh2" x1="0" y1="0" x2="0" y2="0"></line>
+            <line class="shadowLine" id="sh3" x1="0" y1="0" x2="0" y2="0"></line>
+            <line class="shadowLine" id="sh4" x1="0" y1="0" x2="0" y2="0"></line>
+
+            <!-- main lines -->
+            <line id="l1" x1="0" y1="0" x2="0" y2="0"></line>
+            <line id="l2" x1="0" y1="0" x2="0" y2="0"></line>
+            <line id="l3" x1="0" y1="0" x2="0" y2="0"></line>
+            <line id="l4" x1="0" y1="0" x2="0" y2="0"></line>
+          </svg>
+
+          <!-- Relationship labels -->
+          <div class="relLabel" id="lab1">EX-PARTNER</div>
+          <div class="relLabel" id="lab2">BUSINESS PARTNER</div>
+          <div class="relLabel" id="lab3">NEIGHBOR</div>
+          <div class="relLabel" id="lab4">SIBLING</div>
+
+          <!-- Fixed-position grid -->
+          <div class="grid">
+            <div class="pos tl" id="pos1">
+              <div class="nodeWrap suspect" id="node1">
+                <div class="node">
+                  <div class="pinStem"></div>
+                  <div class="face" id="face1"><i class="fa-solid fa-user-secret"></i></div>
+                  <div class="role">SUSPECT</div>
+                  <div class="name" id="name1">CASEY VALE</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pos tr" id="pos2">
+              <div class="nodeWrap suspect" id="node2">
+                <div class="node">
+                  <div class="pinStem"></div>
+                  <div class="face" id="face2"><i class="fa-solid fa-user-secret"></i></div>
+                  <div class="role">SUSPECT</div>
+                  <div class="name" id="name2">MORGAN REYES</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pos center victim" id="posC">
+              <div class="nodeWrap victim" id="nodeC">
+                <div class="node">
+                  <div class="pinStem"></div>
+                  <div class="face" id="faceC"><i class="fa-solid fa-user"></i></div>
+                  <div class="role"><span>VICTIM</span></div>
+                  <div class="name" id="nameC">VICTIM: AVERY QUINN</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pos bl" id="pos3">
+              <div class="nodeWrap suspect" id="node3">
+                <div class="node">
+                  <div class="pinStem"></div>
+                  <div class="face" id="face3"><i class="fa-solid fa-user-secret"></i></div>
+                  <div class="role">SUSPECT</div>
+                  <div class="name" id="name3">RILEY PARK</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="pos br" id="pos4">
+              <div class="nodeWrap suspect" id="node4">
+                <div class="node">
+                  <div class="pinStem"></div>
+                  <div class="face" id="face4"><i class="fa-solid fa-user-secret"></i></div>
+                  <div class="role">SUSPECT</div>
+                  <div class="name" id="name4">TAYLOR GRANT</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const sanitize = (s) => (s ?? "").toString().trim();
+
+    // Inputs
+    const caseTitleIn = $("caseTitleIn");
+    const caseSubIn = $("caseSubIn");
+    const stringColorIn = $("stringColorIn");
+    const stringThicknessIn = $("stringThicknessIn");
+
+    const victimNameIn = $("victimNameIn");
+    const victimPhotoIn = $("victimPhotoIn");
+
+    const s1NameIn = $("s1NameIn"), s1RelIn = $("s1RelIn"), s1PhotoIn = $("s1PhotoIn");
+    const s2NameIn = $("s2NameIn"), s2RelIn = $("s2RelIn"), s2PhotoIn = $("s2PhotoIn");
+    const s3NameIn = $("s3NameIn"), s3RelIn = $("s3RelIn"), s3PhotoIn = $("s3PhotoIn");
+    const s4NameIn = $("s4NameIn"), s4RelIn = $("s4RelIn"), s4PhotoIn = $("s4PhotoIn");
+
+    const demoBtn = $("demoBtn");
+    const clearPhotosBtn = $("clearPhotosBtn");
+
+    const exportJsonBtn = $("exportJson");
+    const importJsonBtn = $("importJson");
+
+    // Outputs
+    const caseTitleOut = $("caseTitleOut");
+    const caseSubOut = $("caseSubOut");
+
+    const nameC = $("nameC");
+    const name1 = $("name1"), name2 = $("name2"), name3 = $("name3"), name4 = $("name4");
+
+    const lab1 = $("lab1"), lab2 = $("lab2"), lab3 = $("lab3"), lab4 = $("lab4");
+
+    const board = $("board");
+    const strings = $("strings");
+
+    // Faces (only <img> if user-uploaded)
+    const faceC = $("faceC");
+    const face1 = $("face1"), face2 = $("face2"), face3 = $("face3"), face4 = $("face4");
+
+    // Lines
+    const l1 = $("l1"), l2 = $("l2"), l3 = $("l3"), l4 = $("l4");
+    const sh1 = $("sh1"), sh2 = $("sh2"), sh3 = $("sh3"), sh4 = $("sh4");
+
+    // Export
+    const downloadBtn = $("downloadBtn");
+    const exportType = $("exportType");
+    const exportScale = $("exportScale");
+    const captureArea = $("captureArea");
+
+    // Photo data for JSON
+    let photoData = { C:"", n1:"", n2:"", n3:"", n4:"" };
+
+    function setCSSString(){
+      document.documentElement.style.setProperty("--string", stringColorIn.value || "#d32f2f");
+      document.documentElement.style.setProperty("--stringGlow", hexToRgba(stringColorIn.value || "#d32f2f", 0.35));
+      const w = Number(stringThicknessIn.value || 3.2);
+      [l1,l2,l3,l4].forEach(el => el.style.strokeWidth = String(w));
+    }
+
+    function hexToRgba(hex, a){
+      const h = (hex || "#d32f2f").replace("#","").trim();
+      if(h.length !== 6) return `rgba(211,47,47,${a})`;
+      const r = parseInt(h.slice(0,2), 16);
+      const g = parseInt(h.slice(2,4), 16);
+      const b = parseInt(h.slice(4,6), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    function buildText(){
+      caseTitleOut.textContent = sanitize(caseTitleIn.value) || "RED THREAD // RELATIONSHIP MAP";
+      caseSubOut.textContent = sanitize(caseSubIn.value) || "";
+
+      nameC.textContent = sanitize(victimNameIn.value) || "VICTIM";
+      name1.textContent = sanitize(s1NameIn.value) || "SUSPECT A";
+      name2.textContent = sanitize(s2NameIn.value) || "SUSPECT B";
+      name3.textContent = sanitize(s3NameIn.value) || "SUSPECT C";
+      name4.textContent = sanitize(s4NameIn.value) || "SUSPECT D";
+
+      lab1.textContent = sanitize(s1RelIn.value) || "RELATIONSHIP";
+      lab2.textContent = sanitize(s2RelIn.value) || "RELATIONSHIP";
+      lab3.textContent = sanitize(s3RelIn.value) || "RELATIONSHIP";
+      lab4.textContent = sanitize(s4RelIn.value) || "RELATIONSHIP";
+    }
+
+    function setFace(faceEl, dataUrl, fallbackIconClass){
+      // Remove any existing <img>
+      const existing = faceEl.querySelector("img");
+      if(existing) existing.remove();
+
+      // Clear old placeholder icon(s) if we are adding image
+      const icon = faceEl.querySelector("i");
+      if(!dataUrl){
+        // ensure icon present
+        if(!icon){
+          const i = document.createElement("i");
+          i.className = fallbackIconClass;
+          faceEl.appendChild(i);
+        } else {
+          icon.className = fallbackIconClass;
+        }
+        return;
+      }
+
+      if(icon) icon.remove();
+
+      const img = document.createElement("img");
+      img.alt = "Uploaded photo";
+      img.src = dataUrl;
+      faceEl.appendChild(img);
+    }
+
+    function readFileToDataUrl(file, cb){
+      if(!file){ cb(""); return; }
+      const reader = new FileReader();
+      reader.onload = (e) => cb(e.target.result || "");
+      reader.readAsDataURL(file);
+    }
+
+    victimPhotoIn.addEventListener("change", ()=>{
+      const f = victimPhotoIn.files && victimPhotoIn.files[0];
+      readFileToDataUrl(f, (url)=>{
+        photoData.C = url;
+        setFace(faceC, url, "fa-solid fa-user");
+        requestLayout();
+      });
+    });
+    s1PhotoIn.addEventListener("change", ()=>{
+      const f = s1PhotoIn.files && s1PhotoIn.files[0];
+      readFileToDataUrl(f, (url)=>{
+        photoData.n1 = url;
+        setFace(face1, url, "fa-solid fa-user-secret");
+        requestLayout();
+      });
+    });
+    s2PhotoIn.addEventListener("change", ()=>{
+      const f = s2PhotoIn.files && s2PhotoIn.files[0];
+      readFileToDataUrl(f, (url)=>{
+        photoData.n2 = url;
+        setFace(face2, url, "fa-solid fa-user-secret");
+        requestLayout();
+      });
+    });
+    s3PhotoIn.addEventListener("change", ()=>{
+      const f = s3PhotoIn.files && s3PhotoIn.files[0];
+      readFileToDataUrl(f, (url)=>{
+        photoData.n3 = url;
+        setFace(face3, url, "fa-solid fa-user-secret");
+        requestLayout();
+      });
+    });
+    s4PhotoIn.addEventListener("change", ()=>{
+      const f = s4PhotoIn.files && s4PhotoIn.files[0];
+      readFileToDataUrl(f, (url)=>{
+        photoData.n4 = url;
+        setFace(face4, url, "fa-solid fa-user-secret");
+        requestLayout();
+      });
+    });
+
+    clearPhotosBtn.addEventListener("click", ()=>{
+      photoData = { C:"", n1:"", n2:"", n3:"", n4:"" };
+      setFace(faceC, "", "fa-solid fa-user");
+      setFace(face1, "", "fa-solid fa-user-secret");
+      setFace(face2, "", "fa-solid fa-user-secret");
+      setFace(face3, "", "fa-solid fa-user-secret");
+      setFace(face4, "", "fa-solid fa-user-secret");
+      victimPhotoIn.value = "";
+      s1PhotoIn.value = "";
+      s2PhotoIn.value = "";
+      s3PhotoIn.value = "";
+      s4PhotoIn.value = "";
+      requestLayout();
+    });
+
+    // Layout strings based on actual rendered positions
+    let layoutRaf = null;
+    function requestLayout(){
+      if(layoutRaf) cancelAnimationFrame(layoutRaf);
+      layoutRaf = requestAnimationFrame(()=> {
+        layoutRaf = null;
+        layoutStrings();
+      });
+    }
+
+    function centerOf(el){
+      const b = board.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      return {
+        x: (r.left - b.left) + r.width/2,
+        y: (r.top - b.top) + r.height/2
+      };
+    }
+
+    function setLine(lineEl, x1,y1,x2,y2){
+      lineEl.setAttribute("x1", x1);
+      lineEl.setAttribute("y1", y1);
+      lineEl.setAttribute("x2", x2);
+      lineEl.setAttribute("y2", y2);
+    }
+
+    function placeLabel(labelEl, x1,y1,x2,y2){
+      const mx = (x1+x2)/2;
+      const my = (y1+y2)/2;
+
+      const dx = x2-x1;
+      const dy = y2-y1;
+      const ang = Math.atan2(dy, dx) * (180/Math.PI);
+
+      labelEl.style.left = (mx) + "px";
+      labelEl.style.top = (my) + "px";
+      labelEl.style.transform = `translate(-50%, -50%) rotate(${clamp(ang, -22, 22)}deg)`;
+    }
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+    function layoutStrings(){
+      // lines connect OUTER node centers -> CENTER node center
+      const c = centerOf($("nodeC"));
+      const p1 = centerOf($("node1"));
+      const p2 = centerOf($("node2"));
+      const p3 = centerOf($("node3"));
+      const p4 = centerOf($("node4"));
+
+      // update SVG viewBox to match board pixel coords
+      const b = board.getBoundingClientRect();
+      strings.setAttribute("viewBox", `0 0 ${b.width} ${b.height}`);
+
+      // shadow first (behind)
+      setLine(sh1, p1.x,p1.y,c.x,c.y);
+      setLine(sh2, p2.x,p2.y,c.x,c.y);
+      setLine(sh3, p3.x,p3.y,c.x,c.y);
+      setLine(sh4, p4.x,p4.y,c.x,c.y);
+
+      setLine(l1, p1.x,p1.y,c.x,c.y);
+      setLine(l2, p2.x,p2.y,c.x,c.y);
+      setLine(l3, p3.x,p3.y,c.x,c.y);
+      setLine(l4, p4.x,p4.y,c.x,c.y);
+
+      // label placement (slightly biased toward outer node)
+      placeLabel(lab1, p1.x,p1.y, c.x,c.y);
+      placeLabel(lab2, p2.x,p2.y, c.x,c.y);
+      placeLabel(lab3, p3.x,p3.y, c.x,c.y);
+      placeLabel(lab4, p4.x,p4.y, c.x,c.y);
+    }
+
+    // Demo
+    demoBtn.addEventListener("click", ()=>{
+      caseTitleIn.value = "RED THREAD // RELATIONSHIP MAP";
+      caseSubIn.value = "Five fixed nodes. Labels sit on the thread. Photos optional (upload if you want).";
+      victimNameIn.value = "VICTIM: JAMIE HART";
+
+      s1NameIn.value = "CASEY VALE";  s1RelIn.value = "EX-PARTNER";
+      s2NameIn.value = "MORGAN REYES"; s2RelIn.value = "BUSINESS PARTNER";
+      s3NameIn.value = "RILEY PARK";  s3RelIn.value = "NEIGHBOR";
+      s4NameIn.value = "TAYLOR GRANT"; s4RelIn.value = "SIBLING";
+
+      stringColorIn.value = "#d32f2f";
+      stringThicknessIn.value = "3.2";
+
+      buildText();
+      setCSSString();
+      requestLayout();
+    });
+
+    // JSON
+    function getState(){
+      return {
+        header:{
+          title: caseTitleIn.value,
+          sub: caseSubIn.value,
+          stringColor: stringColorIn.value,
+          stringThickness: stringThicknessIn.value
+        },
+        people:{
+          victim:{ name: victimNameIn.value, photo: photoData.C },
+          suspects:[
+            { pos:"topLeft", name: s1NameIn.value, rel: s1RelIn.value, photo: photoData.n1 },
+            { pos:"topRight", name: s2NameIn.value, rel: s2RelIn.value, photo: photoData.n2 },
+            { pos:"bottomLeft", name: s3NameIn.value, rel: s3RelIn.value, photo: photoData.n3 },
+            { pos:"bottomRight", name: s4NameIn.value, rel: s4RelIn.value, photo: photoData.n4 }
+          ]
+        }
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+
+      const h = s.header || {};
+      caseTitleIn.value = h.title ?? caseTitleIn.value;
+      caseSubIn.value = h.sub ?? caseSubIn.value;
+      stringColorIn.value = h.stringColor ?? stringColorIn.value;
+      stringThicknessIn.value = h.stringThickness ?? stringThicknessIn.value;
+
+      const p = s.people || {};
+      const v = p.victim || {};
+      victimNameIn.value = v.name ?? victimNameIn.value;
+      photoData.C = (v.photo ?? "").toString();
+
+      const sus = Array.isArray(p.suspects) ? p.suspects : [];
+      const pick = (i, key, fallback) => (sus[i] && sus[i][key] != null) ? sus[i][key] : fallback;
+
+      s1NameIn.value = pick(0,"name", s1NameIn.value);
+      s1RelIn.value  = pick(0,"rel",  s1RelIn.value);
+      photoData.n1   = (pick(0,"photo","") || "").toString();
+
+      s2NameIn.value = pick(1,"name", s2NameIn.value);
+      s2RelIn.value  = pick(1,"rel",  s2RelIn.value);
+      photoData.n2   = (pick(1,"photo","") || "").toString();
+
+      s3NameIn.value = pick(2,"name", s3NameIn.value);
+      s3RelIn.value  = pick(2,"rel",  s3RelIn.value);
+      photoData.n3   = (pick(2,"photo","") || "").toString();
+
+      s4NameIn.value = pick(3,"name", s4NameIn.value);
+      s4RelIn.value  = pick(3,"rel",  s4RelIn.value);
+      photoData.n4   = (pick(3,"photo","") || "").toString();
+
+      buildText();
+      setCSSString();
+
+      setFace(faceC, photoData.C, "fa-solid fa-user");
+      setFace(face1, photoData.n1, "fa-solid fa-user-secret");
+      setFace(face2, photoData.n2, "fa-solid fa-user-secret");
+      setFace(face3, photoData.n3, "fa-solid fa-user-secret");
+      setFace(face4, photoData.n4, "fa-solid fa-user-secret");
+
+      requestLayout();
+    }
+
+    exportJsonBtn.addEventListener("click", async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener("click", ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        setState(JSON.parse(raw));
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Export
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      // ensure layout is correct before capture
+      buildText();
+      setCSSString();
+      layoutStrings();
+
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `relationship_map_${fileStamp()}`;
+
+      if(type === "jpg"){
+        const url = canvas.toDataURL("image/jpeg", 0.95);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:"l", unit:"pt", format:"a4" }); // landscape fits board nicely
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener("click", exportEvidence);
+
+    // Rebuild on input
+    [
+      caseTitleIn, caseSubIn,
+      victimNameIn,
+      s1NameIn, s2NameIn, s3NameIn, s4NameIn,
+      s1RelIn, s2RelIn, s3RelIn, s4RelIn
+    ].forEach(el=>{
+      el.addEventListener("input", ()=>{ buildText(); requestLayout(); });
+      el.addEventListener("change", ()=>{ buildText(); requestLayout(); });
+    });
+
+    [stringColorIn, stringThicknessIn].forEach(el=>{
+      el.addEventListener("input", ()=>{ setCSSString(); requestLayout(); });
+      el.addEventListener("change", ()=>{ setCSSString(); requestLayout(); });
+    });
+
+    // Init
+    (function init(){
+      buildText();
+      setCSSString();
+      setFace(faceC, "", "fa-solid fa-user");
+      setFace(face1, "", "fa-solid fa-user-secret");
+      setFace(face2, "", "fa-solid fa-user-secret");
+      setFace(face3, "", "fa-solid fa-user-secret");
+      setFace(face4, "", "fa-solid fa-user-secret");
+      requestLayout();
+    })();
+
+    window.addEventListener("resize", requestLayout);
+  </script>
+</body>
+</html>

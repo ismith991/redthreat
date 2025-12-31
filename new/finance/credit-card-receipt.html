@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Credit Card Receipt</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#121212;
+      --hair:#e6e6e6;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:86px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* Receipt slip */
+    .slipWrap{
+      width: 360px;
+      padding:14px 0 28px;
+      display:flex;
+      justify-content:center;
+    }
+
+    .slip{
+      width: 320px; /* requirement */
+      background: var(--paper);
+      color: var(--ink);
+      border-radius: 8px 8px 0 0;
+      box-shadow: 0 18px 45px rgba(0,0,0,.55);
+      border: 1px solid rgba(255,255,255,.10);
+      padding: 14px 14px 18px 14px;
+      font-family: "Courier Prime", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      position:relative;
+
+      /* Torn edge bottom */
+      clip-path: polygon(
+        0% 0%, 100% 0%, 100% 92%,
+        96% 96%, 92% 92%, 88% 96%, 84% 92%, 80% 96%, 76% 92%, 72% 96%,
+        68% 92%, 64% 96%, 60% 92%, 56% 96%, 52% 92%, 48% 96%, 44% 92%,
+        40% 96%, 36% 92%, 32% 96%, 28% 92%, 24% 96%, 20% 92%, 16% 96%,
+        12% 92%, 8% 96%, 4% 92%, 0% 96%
+      );
+    }
+
+    /* Subtle thermal noise */
+    .slip:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        repeating-linear-gradient(180deg, rgba(0,0,0,.028) 0px, rgba(0,0,0,.028) 1px, transparent 1px, transparent 3px);
+      mix-blend-mode:multiply;
+      pointer-events:none;
+      opacity:.55;
+      border-radius: 8px 8px 0 0;
+    }
+
+    .center{ text-align:center; }
+    .merchant{
+      font-weight:800;
+      font-size:16px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+    .addr{
+      font-size:12px;
+      line-height:1.35;
+      margin-top:6px;
+      opacity:.95;
+    }
+
+    .rule{
+      border-top:1px dashed rgba(0,0,0,.45);
+      margin:12px 0;
+    }
+
+    .kv{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-size:12px;
+      line-height:1.35;
+    }
+    .kv .k{ opacity:.95; }
+    .kv .v{ text-align:right; white-space:nowrap; }
+
+    .items{
+      margin-top:6px;
+      font-size:12px;
+    }
+    .itemRow{
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      padding:3px 0;
+    }
+    .itemRow .name{
+      flex:1;
+      min-width:0;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+    .itemRow .price{
+      width:80px;
+      text-align:right;
+      white-space:nowrap;
+    }
+
+    .totals{
+      margin-top:8px;
+      font-size:12px;
+    }
+    .totalStrong{
+      font-weight:900;
+      font-size:14px;
+      letter-spacing:.02em;
+    }
+
+    .footer{
+      margin-top:10px;
+      font-size:12px;
+      line-height:1.5;
+    }
+    .sig{
+      margin-top:8px;
+      font-size:12px;
+    }
+    .sigLine{
+      font-weight:800;
+      letter-spacing:.06em;
+    }
+
+    .mutedInk{ opacity:.90; }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-receipt"></i> Financial Intel — Credit Card Receipt</h2>
+
+      <div class="cc-card">
+        <label class="label" for="store">Store Name</label>
+        <input id="store" class="input" type="text" value="STORE NAME" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="addr">Address (multi-line)</label>
+        <textarea id="addr" class="textarea">123 MAIN ST
+CITY, ST 00000</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="dt">Date</label>
+            <input id="dt" class="input" type="text" value="2025-12-30" />
+          </div>
+          <div>
+            <label class="label" for="tm">Time</label>
+            <input id="tm" class="input" type="text" value="19:42" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="taxRate">Tax %</label>
+            <input id="taxRate" class="input" type="text" value="8.75" />
+          </div>
+          <div>
+            <label class="label" for="cardMask">Masked Card</label>
+            <input id="cardMask" class="input" type="text" value="************4021" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="randAuth" class="btnGhost">
+            <i class="fa-solid fa-dice" style="margin-right:8px;"></i>
+            Randomize Auth Code
+          </button>
+          <button id="clearAll" class="btnGhost">
+            <i class="fa-solid fa-trash" style="margin-right:8px;"></i>
+            Clear Items
+          </button>
+        </div>
+
+        <p class="tiny">Everything is customizable. Use the builder below to add any items/prices. Tax updates automatically.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="itemName">Item</label>
+            <input id="itemName" class="input" type="text" value="ITEM NAME" />
+          </div>
+          <div>
+            <label class="label" for="itemPrice">Price</label>
+            <input id="itemPrice" class="input" type="text" value="4.95" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <button id="addItem" class="btn">
+          <i class="fa-solid fa-plus" style="margin-right:8px;"></i>
+          Add Item
+        </button>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="demoItems" class="btnGhost">
+            <i class="fa-solid fa-bolt" style="margin-right:8px;"></i>
+            Random Demo Items
+          </button>
+          <button id="bulkPaste" class="btnGhost">
+            <i class="fa-solid fa-clipboard" style="margin-right:8px;"></i>
+            Bulk Paste (CSV)
+          </button>
+        </div>
+
+        <div id="bulkBox" style="display:none; margin-top:12px;">
+          <label class="label" for="bulkText">Paste lines like: Item,Price</label>
+          <textarea id="bulkText" class="textarea" placeholder="Latte,4.95&#10;Bagel,2.50"></textarea>
+          <div style="height:10px"></div>
+          <div class="row">
+            <button id="parseBulk" class="btnGhost">
+              <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+              Parse & Add
+            </button>
+            <button id="closeBulk" class="btnGhost">
+              <i class="fa-solid fa-xmark" style="margin-right:8px;"></i>
+              Close
+            </button>
+          </div>
+        </div>
+
+        <p class="tiny">Tip: click an item row in the preview to edit/delete it.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <div id="captureArea" class="slipWrap">
+        <section class="slip" aria-label="Thermal receipt preview">
+
+          <div class="center">
+            <div class="merchant" id="storeOut">STORE NAME</div>
+            <div class="addr" id="addrOut"></div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="kv">
+            <div class="k">DATE</div><div class="v" id="dateOut">—</div>
+          </div>
+          <div class="kv">
+            <div class="k">TIME</div><div class="v" id="timeOut">—</div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="items" id="itemsOut"></div>
+
+          <div class="rule"></div>
+
+          <div class="totals">
+            <div class="kv"><div class="k">SUBTOTAL</div><div class="v" id="subOut">$0.00</div></div>
+            <div class="kv"><div class="k">TAX</div><div class="v" id="taxOut">$0.00</div></div>
+            <div class="kv totalStrong"><div class="k">TOTAL</div><div class="v" id="totalOut">$0.00</div></div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="footer">
+            <div class="kv"><div class="k">AUTH CODE</div><div class="v" id="authOut">—</div></div>
+            <div class="kv"><div class="k">CARD</div><div class="v" id="cardOut">************0000</div></div>
+            <div class="sig">
+              <span class="mutedInk">SIGN:</span> <span class="sigLine">X___________</span>
+            </div>
+          </div>
+
+        </section>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const store = document.getElementById('store');
+    const addr = document.getElementById('addr');
+    const dt = document.getElementById('dt');
+    const tm = document.getElementById('tm');
+    const taxRate = document.getElementById('taxRate');
+    const cardMask = document.getElementById('cardMask');
+
+    const itemName = document.getElementById('itemName');
+    const itemPrice = document.getElementById('itemPrice');
+
+    const addItem = document.getElementById('addItem');
+    const demoItems = document.getElementById('demoItems');
+    const clearAll = document.getElementById('clearAll');
+    const randAuth = document.getElementById('randAuth');
+
+    const bulkPaste = document.getElementById('bulkPaste');
+    const bulkBox = document.getElementById('bulkBox');
+    const bulkText = document.getElementById('bulkText');
+    const parseBulk = document.getElementById('parseBulk');
+    const closeBulk = document.getElementById('closeBulk');
+
+    // Outputs
+    const storeOut = document.getElementById('storeOut');
+    const addrOut = document.getElementById('addrOut');
+    const dateOut = document.getElementById('dateOut');
+    const timeOut = document.getElementById('timeOut');
+
+    const itemsOut = document.getElementById('itemsOut');
+    const subOut = document.getElementById('subOut');
+    const taxOut = document.getElementById('taxOut');
+    const totalOut = document.getElementById('totalOut');
+
+    const authOut = document.getElementById('authOut');
+    const cardOut = document.getElementById('cardOut');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function parseMoney(s){
+      const n = Number(String(s).replace(/[$,]/g,'').trim());
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmtMoney(n){
+      const v = Number(n);
+      if(!Number.isFinite(v)) return "$0.00";
+      return "$" + v.toFixed(2);
+    }
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+    // State
+    let items = []; // {name, price}
+
+    function randomAuth(){
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let out = "";
+      for(let i=0;i<6;i++) out += chars[Math.floor(Math.random()*chars.length)];
+      return out;
+    }
+
+    function updateHeader(){
+      storeOut.textContent = sanitize(store.value) || "—";
+      addrOut.innerHTML = (sanitize(addr.value) || "").split("\n").map(line => `<div>${escapeHtml(line)}</div>`).join("");
+      dateOut.textContent = sanitize(dt.value) || "—";
+      timeOut.textContent = sanitize(tm.value) || "—";
+      cardOut.textContent = sanitize(cardMask.value) || "************0000";
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function renderItems(){
+      itemsOut.innerHTML = "";
+
+      if(items.length === 0){
+        itemsOut.innerHTML = `<div class="itemRow"><div class="name mutedInk">NO ITEMS</div><div class="price mutedInk">$0.00</div></div>`;
+      } else {
+        items.forEach((it, idx)=>{
+          const row = document.createElement('div');
+          row.className = "itemRow";
+          row.dataset.idx = String(idx);
+          row.title = "Click to edit/delete";
+
+          const left = document.createElement('div');
+          left.className = "name";
+          left.textContent = it.name;
+
+          const right = document.createElement('div');
+          right.className = "price";
+          right.textContent = fmtMoney(it.price);
+
+          row.appendChild(left);
+          row.appendChild(right);
+          itemsOut.appendChild(row);
+        });
+      }
+    }
+
+    function recalcTotals(){
+      const sub = items.reduce((a,b)=> a + (Number.isFinite(b.price) ? b.price : 0), 0);
+      let tr = parseMoney(taxRate.value);
+      tr = (tr === null) ? 0 : tr;
+      tr = clamp(tr, 0, 99.99);
+
+      const tax = sub * (tr/100);
+      const total = sub + tax;
+
+      subOut.textContent = fmtMoney(sub);
+      taxOut.textContent = fmtMoney(tax);
+      totalOut.textContent = fmtMoney(total);
+    }
+
+    function rerender(){
+      updateHeader();
+      renderItems();
+      recalcTotals();
+    }
+
+    function addItemToList(name, price){
+      const n = sanitize(name) || "ITEM";
+      const p = parseMoney(price);
+      if(p === null) return;
+      items.push({ name:n, price:p });
+      rerender();
+    }
+
+    addItem.addEventListener('click', ()=>{
+      addItemToList(itemName.value, itemPrice.value);
+    });
+
+    clearAll.addEventListener('click', ()=>{
+      items = [];
+      rerender();
+    });
+
+    randAuth.addEventListener('click', ()=>{
+      authOut.textContent = randomAuth();
+    });
+
+    demoItems.addEventListener('click', ()=>{
+      const pools = [
+        "COFFEE", "ESPRESSO", "BAGEL", "SANDWICH", "MUFFIN", "CHIPS", "SODA", "WATER",
+        "FUEL", "SNACK", "CIGARETTES", "GUM", "PARKING", "CAR WASH", "ENERGY DRINK"
+      ];
+      function pick(arr){ return arr[Math.floor(Math.random()*arr.length)]; }
+      function randMoney(min,max){ return +( (Math.random()*(max-min)+min).toFixed(2) ); }
+
+      // add 6–10 items
+      const count = Math.floor(Math.random()*5)+6;
+      for(let i=0;i<count;i++){
+        const nm = pick(pools) + (Math.random()<0.25 ? " (L)" : "");
+        const pr = randMoney(1.25, 14.95);
+        items.push({name:nm, price:pr});
+      }
+      rerender();
+    });
+
+    // Bulk paste UI
+    bulkPaste.addEventListener('click', ()=>{
+      bulkBox.style.display = (bulkBox.style.display === "none") ? "block" : "none";
+    });
+    closeBulk.addEventListener('click', ()=>{
+      bulkBox.style.display = "none";
+    });
+
+    parseBulk.addEventListener('click', ()=>{
+      const lines = sanitize(bulkText.value).split("\n").map(l=>l.trim()).filter(Boolean);
+      lines.forEach(line=>{
+        // support: Item,Price  OR  Item \t Price
+        let parts = line.includes(",") ? line.split(",") : line.split("\t");
+        if(parts.length < 2) return;
+        const name = parts.slice(0, parts.length-1).join(",").trim();
+        const price = parts[parts.length-1].trim();
+        addItemToList(name, price);
+      });
+      bulkText.value = "";
+      bulkBox.style.display = "none";
+    });
+
+    // Click row to edit/delete (super customizable)
+    itemsOut.addEventListener('click', (e)=>{
+      const row = e.target.closest('.itemRow');
+      if(!row || row.dataset.idx == null) return;
+      const idx = Number(row.dataset.idx);
+      if(!Number.isFinite(idx) || !items[idx]) return;
+
+      const current = items[idx];
+
+      const action = prompt(
+        `Edit item (type one of these):\n` +
+        `- edit\n- delete\n- duplicate\n\n` +
+        `Current:\n${current.name} | ${current.price.toFixed(2)}`
+      );
+      if(!action) return;
+
+      const a = action.trim().toLowerCase();
+
+      if(a === "delete"){
+        items.splice(idx,1);
+        rerender();
+        return;
+      }
+
+      if(a === "duplicate"){
+        items.splice(idx+1, 0, { name: current.name, price: current.price });
+        rerender();
+        return;
+      }
+
+      if(a === "edit"){
+        const newName = prompt("Item name:", current.name);
+        if(newName === null) return;
+        const newPrice = prompt("Price:", String(current.price.toFixed(2)));
+        if(newPrice === null) return;
+
+        const p = parseMoney(newPrice);
+        if(p === null) return;
+
+        items[idx] = { name: sanitize(newName) || "ITEM", price: p };
+        rerender();
+      }
+    });
+
+    // Live update
+    [store, addr, dt, tm, cardMask].forEach(el=>{
+      el.addEventListener('input', rerender);
+      el.addEventListener('change', rerender);
+    });
+    taxRate.addEventListener('input', recalcTotals);
+    taxRate.addEventListener('change', recalcTotals);
+
+    // Init
+    authOut.textContent = randomAuth();
+    rerender();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `credit_card_receipt_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

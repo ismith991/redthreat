@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — DNA Analysis</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111111;
+      --sub:#5e5e5e;
+      --rule:#e9e9e9;
+      --soft:#f6f7f9;
+
+      --match:#ffe081;
+      --matchBorder:#d7b100;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    .sheet{
+      width: 980px;
+      min-height: 1120px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+    }
+
+    .pad{ padding:28px 34px 26px 34px; }
+
+    .top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      border-bottom:1px solid var(--rule);
+      padding-bottom:14px;
+      margin-bottom:16px;
+    }
+
+    .title{
+      display:flex;
+      align-items:flex-start;
+      gap:12px;
+    }
+    .icon{
+      width:44px;
+      height:44px;
+      border-radius:12px;
+      border:2px solid #111;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--soft);
+    }
+    .icon i{ color:#111; }
+    .h1{
+      margin:0;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .h2{
+      margin:6px 0 0 0;
+      color:var(--sub);
+      font-size:12px;
+    }
+
+    .caseBox{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      background:var(--soft);
+      padding:12px 14px;
+      min-width:280px;
+      text-align:right;
+    }
+    .caseBox .k{
+      font-size:11px;
+      color:var(--sub);
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+    .caseBox .v{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      font-size:14px;
+      color:#111;
+      letter-spacing:.04em;
+    }
+
+    .table-wrap{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      overflow:hidden;
+      background:#fff;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:13px;
+    }
+    thead th{
+      text-align:left;
+      background:var(--soft);
+      border-bottom:1px solid #e1e1e1;
+      padding:10px 12px;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      color:#333;
+    }
+    tbody td{
+      padding:10px 12px;
+      border-bottom:1px solid #efefef;
+      vertical-align:top;
+      word-wrap:break-word;
+    }
+    tbody tr:last-child td{ border-bottom:none; }
+
+    .mono{ font-family:"Courier Prime", monospace; }
+
+    .match{
+      background:linear-gradient(180deg, rgba(255,224,129,.95), rgba(255,224,129,.72));
+      border-left:3px solid var(--matchBorder);
+      font-weight:900;
+    }
+
+    .pill{
+      display:inline-block;
+      font-size:11px;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      border-radius:999px;
+      padding:4px 8px;
+      border:1px solid rgba(0,0,0,.12);
+      background:#fff;
+      color:#333;
+    }
+    .pill.ok{
+      border-color: rgba(215,177,0,.45);
+      background: rgba(255,224,129,.15);
+    }
+    .pill.no{
+      border-color: rgba(0,0,0,.14);
+      background: rgba(0,0,0,.04);
+      color:#555;
+    }
+
+    .trashBtn{
+      border:none;
+      background:transparent;
+      cursor:pointer;
+      color:#555;
+      padding:6px 8px;
+      border-radius:10px;
+    }
+    .trashBtn:hover{
+      color:#111;
+      background:rgba(0,0,0,.05);
+    }
+
+    .conclusion{
+      margin-top:16px;
+      border:2px solid #111;
+      border-radius:12px;
+      padding:12px 14px;
+      background:#fff;
+    }
+    .conclusion .k{
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#333;
+      font-weight:900;
+      margin-bottom:6px;
+    }
+    .conclusion .v{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      font-size:14px;
+      color:#111;
+    }
+
+    .foot{
+      margin-top:18px;
+      border-top:1px solid var(--rule);
+      padding-top:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:11px;
+      color:#555;
+    }
+
+    @media (max-width: 1160px){
+      .sheet{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .top{ flex-direction:column; align-items:flex-start; }
+      .caseBox{ width:100%; text-align:left; }
+      table{ font-size:12px; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .pad{ padding:18px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-dna"></i> Medical — DNA Analysis</h2>
+
+      <div class="cc-card">
+        <label class="label" for="caseNo">Case Number</label>
+        <input id="caseNo" class="input" type="text" value="RTG-DNA-25-0441" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="prob">Conclusion (Probability of Random Match)</label>
+        <input id="prob" class="input" type="text" value="1 in 4.5 Billion" />
+
+        <p class="tiny">
+          Match highlight triggers when <b>Evidence alleles</b> equal <b>Suspect alleles</b>
+          (order-insensitive, duplicates preserved).
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="locus">Locus</label>
+            <input id="locus" class="input" type="text" value="D3S1358" />
+          </div>
+          <div>
+            <label class="label" for="victim">Victim Alleles</label>
+            <input id="victim" class="input" type="text" value="15, 16" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="evidence">Evidence Sample Alleles</label>
+            <input id="evidence" class="input" type="text" value="15/16" />
+          </div>
+          <div>
+            <label class="label" for="suspect">Suspect Alleles</label>
+            <input id="suspect" class="input" type="text" value="16, 15" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addRowBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Locus</button>
+          <button id="clearBtn" class="ghost"><i class="fa-solid fa-trash" style="margin-right:8px"></i>Clear Rows</button>
+        </div>
+
+        <p class="tiny">Accepted allele formats: <b>15,16</b> • <b>15 16</b> • <b>15/16</b> • <b>15|16</b> • <b>16.3</b></p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="input">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="input">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="sheet" aria-label="DNA Analysis Allele Comparison Table">
+        <div class="pad">
+
+          <div class="top">
+            <div class="title">
+              <div class="icon" aria-hidden="true"><i class="fa-solid fa-dna"></i></div>
+              <div>
+                <h1 class="h1">STR DNA Analysis — Allele Comparison</h1>
+                <div class="h2">Electropherogram-derived allele calls (summary table)</div>
+              </div>
+            </div>
+
+            <div class="caseBox">
+              <div class="k">Case Number</div>
+              <div id="caseOut" class="v">RTG-DNA-25-0441</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th style="width:16%;">Locus</th>
+                  <th style="width:24%;">Victim Alleles</th>
+                  <th style="width:24%;">Evidence Sample Alleles</th>
+                  <th style="width:24%;">Suspect Alleles</th>
+                  <th style="width:8%;">Match</th>
+                  <th style="width:4%; text-align:right;">&nbsp;</th>
+                </tr>
+              </thead>
+              <tbody id="tbody"></tbody>
+            </table>
+          </div>
+
+          <div class="conclusion">
+            <div class="k">Conclusion</div>
+            <div class="v">Probability of Random Match: <span id="probOut">1 in 4.5 Billion</span></div>
+          </div>
+
+          <div class="foot">
+            <div><span style="color:#777;">Highlight rule:</span> Evidence equals Suspect</div>
+            <div><span style="color:#777;">Page:</span> 1 of 1</div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ===== Inputs =====
+    const caseNo = document.getElementById('caseNo');
+    const prob = document.getElementById('prob');
+    const locusIn = document.getElementById('locus');
+    const victimIn = document.getElementById('victim');
+    const evidenceIn = document.getElementById('evidence');
+    const suspectIn = document.getElementById('suspect');
+    const addRowBtn = document.getElementById('addRowBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // ===== Outputs =====
+    const caseOut = document.getElementById('caseOut');
+    const probOut = document.getElementById('probOut');
+    const tbody = document.getElementById('tbody');
+
+    // ===== State =====
+    let rows = [];
+
+    function sanitize(s){ return (s ?? "").toString().trim(); }
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    // Robust allele parser: preserves duplicates, ignores order, normalizes numeric tokens
+    function alleleTokens(text){
+      const t = sanitize(text).toUpperCase();
+      if(!t) return [];
+
+      // Split on common separators
+      const raw = t
+        .replaceAll(";", " ")
+        .replaceAll(",", " ")
+        .replaceAll("/", " ")
+        .replaceAll("|", " ")
+        .replaceAll("\\", " ")
+        .replaceAll("\n", " ")
+        .split(/\s+/)
+        .map(x => x.trim())
+        .filter(Boolean);
+
+      // Normalize numeric tokens so "16" == "16.0"
+      const norm = raw.map(tok => {
+        // Keep things like "X", "Y", "OL", "NEG" as-is
+        const num = tok.match(/^-?\d+(\.\d+)?$/) ? Number(tok) : NaN;
+        if(Number.isFinite(num)){
+          // Avoid scientific notation for these small values
+          const fixed = num.toString();
+          return fixed;
+        }
+        return tok;
+      });
+
+      return norm;
+    }
+
+    function alleleKey(text){
+      const toks = alleleTokens(text);
+      // multiset compare: sort and join
+      return toks.slice().sort((a,b)=> a.localeCompare(b, undefined, {numeric:true})).join("|");
+    }
+
+    function isMatch(evidenceText, suspectText){
+      const eKey = alleleKey(evidenceText);
+      const sKey = alleleKey(suspectText);
+      if(!eKey || !sKey) return false;
+      return eKey === sKey;
+    }
+
+    function applyHeader(){
+      caseOut.textContent = sanitize(caseNo.value) || "—";
+      probOut.textContent = sanitize(prob.value) || "—";
+    }
+
+    function render(){
+      tbody.innerHTML = "";
+
+      rows.forEach((r, idx) => {
+        const match = isMatch(r.evidence, r.suspect);
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="mono">${escapeHtml(r.locus || "—")}</td>
+          <td class="mono">${escapeHtml(r.victim || "—")}</td>
+          <td class="mono ${match ? "match" : ""}">${escapeHtml(r.evidence || "—")}</td>
+          <td class="mono">${escapeHtml(r.suspect || "—")}</td>
+          <td>${match ? `<span class="pill ok">MATCH</span>` : `<span class="pill no">—</span>`}</td>
+          <td style="text-align:right;">
+            <button class="trashBtn" data-del="${idx}" title="Remove row" aria-label="Remove row">
+              <i class="fa-solid fa-trash"></i>
+            </button>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    function addRow(locus, victim, evidence, suspect){
+      const L = sanitize(locus);
+      const V = sanitize(victim);
+      const E = sanitize(evidence);
+      const S = sanitize(suspect);
+      if(!L && !V && !E && !S) return;
+
+      rows.push({ locus:L, victim:V, evidence:E, suspect:S });
+      render();
+    }
+
+    function clearRows(){
+      rows = [];
+      render();
+    }
+
+    // Delete row (event delegation)
+    tbody.addEventListener("click", (e)=>{
+      const btn = e.target.closest("[data-del]");
+      if(!btn) return;
+      const i = Number(btn.dataset.del);
+      if(Number.isFinite(i)){
+        rows.splice(i, 1);
+        render();
+      }
+    });
+
+    // Controls
+    addRowBtn.addEventListener("click", ()=>{
+      addRow(locusIn.value, victimIn.value, evidenceIn.value, suspectIn.value);
+    });
+
+    clearBtn.addEventListener("click", clearRows);
+
+    [caseNo, prob].forEach(el=>{
+      el.addEventListener("input", applyHeader);
+      el.addEventListener("change", applyHeader);
+    });
+
+    // Seed sample rows
+    addRow("D3S1358", "15, 16", "15/16", "16, 15");     // match
+    addRow("vWA", "17, 18", "17, 18", "17, 19");        // no
+    addRow("FGA", "22, 24", "24 22", "22,24");          // match
+    applyHeader();
+
+    // ===== Export =====
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `dna_analysis_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

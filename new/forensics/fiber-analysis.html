@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Fiber Analysis</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Report */
+      --paper:#ffffff;
+      --ink:#111111;
+      --sub:#5e5e5e;
+      --rule:#e7e7e7;
+      --chip:#f3f3f3;
+
+      /* Microscope colors */
+      --fiberRed:#c62828;
+      --fiberBlue:#1565c0;
+      --scopeBorder:#111;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split-Screen Layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Report canvas */
+    .report{
+      width: 980px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d6d6d6;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      font-family:"Courier Prime", monospace;
+    }
+
+    .top{
+      padding:18px 18px 12px 18px;
+      border-bottom:1px solid var(--rule);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .title .icon{
+      width:40px;height:40px;
+      border-radius:12px;
+      border:2px solid #111;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--chip);
+    }
+    .title .icon i{ font-size:18px; color:#111; }
+    .title .h1{
+      font-weight:700;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:15px;
+      line-height:1.1;
+    }
+    .title .h2{
+      font-size:11px;
+      color:var(--sub);
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      margin-top:3px;
+    }
+
+    .body{
+      padding:16px 18px 18px 18px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+      align-items:start;
+    }
+
+    /* Microscope view */
+    .scope-card{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      background:#fff;
+      padding:12px;
+    }
+    .scope-label{
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:#1a1a1a;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .scope-label .tag{
+      font-size:11px;
+      color:#444;
+      border:1px solid #d7d7d7;
+      background:#f6f6f6;
+      padding:4px 8px;
+      border-radius:999px;
+      letter-spacing:.04em;
+    }
+
+    .scope{
+      width:320px;
+      height:320px;
+      border-radius:50%;
+      border:10px solid var(--scopeBorder);
+      margin:0 auto;
+      position:relative;
+      overflow:hidden;
+      background:
+        radial-gradient(circle at 42% 35%, rgba(255,255,255,.14), rgba(0,0,0,.55) 58%, rgba(0,0,0,.82) 100%),
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.06), rgba(0,0,0,0) 62%),
+        #1d1d1d;
+      box-shadow:
+        inset 0 0 0 2px rgba(255,255,255,.08),
+        inset 0 0 60px rgba(0,0,0,.75);
+    }
+
+    .crosshair{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:.28;
+    }
+    .crosshair::before, .crosshair::after{
+      content:"";
+      position:absolute;
+      background:rgba(255,255,255,.22);
+    }
+    .crosshair::before{
+      width:2px;height:100%;
+      left:50%;top:0;
+      transform:translateX(-50%);
+    }
+    .crosshair::after{
+      height:2px;width:100%;
+      top:50%;left:0;
+      transform:translateY(-50%);
+    }
+    .ring{
+      position:absolute;
+      inset:22px;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.16);
+      pointer-events:none;
+    }
+
+    /* Fibers as thin lines (CSS borders) */
+    .fiber{
+      position:absolute;
+      left:50%;
+      top:50%;
+      transform-origin:center;
+      width: 340px; /* spill outside circle a bit */
+      height:0;
+      border-top: 3px solid rgba(255,255,255,.0); /* fallback */
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,.4));
+    }
+    .fiber::after{
+      content:"";
+      position:absolute;
+      left:0;
+      top:-2px;
+      width:100%;
+      height:0;
+      border-top: 3px solid currentColor;
+      opacity:.92;
+    }
+    .fiber.red{ color: var(--fiberRed); }
+    .fiber.blue{ color: var(--fiberBlue); }
+
+    /* Slight “strand” highlight */
+    .fiber::before{
+      content:"";
+      position:absolute;
+      left:0;
+      top:-3px;
+      width:100%;
+      height:0;
+      border-top: 1px solid rgba(255,255,255,.35);
+      opacity:.55;
+    }
+
+    /* Data table */
+    .data{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      background:#fff;
+      padding:12px;
+    }
+    .data-title{
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:10px;
+      color:#1a1a1a;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .data-title .ref{
+      font-size:11px;
+      color:#555;
+      letter-spacing:.02em;
+      font-weight:600;
+      border:1px solid #d7d7d7;
+      background:#f6f6f6;
+      padding:4px 8px;
+      border-radius:999px;
+      text-transform:none;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    thead th{
+      text-align:left;
+      border-bottom:1px solid rgba(0,0,0,.18);
+      padding:8px 8px;
+      color:#333;
+      background:rgba(0,0,0,.03);
+    }
+    tbody td{
+      padding:9px 8px;
+      border-bottom:1px solid rgba(0,0,0,.10);
+      vertical-align:top;
+    }
+    tbody tr:last-child td{ border-bottom:none; }
+
+    .k{ color:#666; width:38%; }
+    .v{ font-weight:700; color:#111; }
+
+    .footer{
+      border-top:1px solid var(--rule);
+      padding:12px 18px;
+      font-size:11px;
+      color:#444;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      background:#fff;
+    }
+    .footer .k{ color:#777; }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .report{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .body{ grid-template-columns:1fr; }
+      .scope{ width:300px; height:300px; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-microscope"></i> Forensics — Fiber Analysis</h2>
+
+      <div class="cc-card">
+        <label class="label" for="fiberType">Fiber Type</label>
+        <input id="fiberType" class="input" type="text" value="Nylon" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="fiberColor">Color</label>
+        <select id="fiberColor" class="select">
+          <option selected>Red</option>
+          <option>Blue</option>
+          <option>Black</option>
+          <option>White</option>
+          <option>Gray</option>
+          <option>Green</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="source">Source Description</label>
+        <input id="source" class="input" type="text" value="Carpet fiber recovered from suspect jacket cuff" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="diameter">Diameter (microns)</label>
+            <input id="diameter" class="input" type="number" min="1" max="2000" step="1" value="42" />
+          </div>
+          <div>
+            <label class="label" for="blueFiber">Crossing Fiber</label>
+            <select id="blueFiber" class="select">
+              <option selected>Blue reference thread</option>
+              <option>Red reference thread</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="tiny">Microscope view shows two crossing fibers (one red, one blue). Selected “Color” changes the primary fiber.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="applyBtn" class="btn"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Apply</button>
+          <button id="randomBtn" class="ghost"><i class="fa-solid fa-dice" style="margin-right:8px"></i>Randomize</button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="report" aria-label="Microscopic Fiber Analysis Report">
+
+        <div class="top">
+          <div class="title">
+            <div class="icon" aria-hidden="true">
+              <i class="fa-solid fa-microscope"></i>
+            </div>
+            <div>
+              <div class="h1">Microscopic Fiber Analysis Report</div>
+              <div class="h2">Cross-thread comparison under microscope</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="body">
+          <!-- Microscope -->
+          <div class="scope-card">
+            <div class="scope-label">
+              <span>Microscope View</span>
+              <span class="tag">400×</span>
+            </div>
+
+            <div class="scope" role="img" aria-label="Circular microscope view showing crossing fibers">
+              <div id="fiberA" class="fiber red" style="transform:translate(-50%,-50%) rotate(28deg);"></div>
+              <div id="fiberB" class="fiber blue" style="transform:translate(-50%,-50%) rotate(-36deg);"></div>
+              <div class="crosshair"></div>
+              <div class="ring"></div>
+            </div>
+
+            <div style="margin-top:10px; font-size:11px; color:#555; line-height:1.5;">
+              <b>Note:</b> Line thickness is representational (visual aid). Diameter is recorded in the data table.
+            </div>
+          </div>
+
+          <!-- Data -->
+          <div class="data" aria-label="Fiber Data Table">
+            <div class="data-title">
+              <span>Fiber Properties</span>
+              <span class="ref"><i class="fa-regular fa-file-lines" style="margin-right:6px;"></i>LAB/FIBER</span>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Field</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="k">Fiber Type</td>
+                  <td id="typeOut" class="v">Nylon</td>
+                </tr>
+                <tr>
+                  <td class="k">Color</td>
+                  <td id="colorOut" class="v">Red</td>
+                </tr>
+                <tr>
+                  <td class="k">Diameter</td>
+                  <td id="diamOut" class="v">42 μm</td>
+                </tr>
+                <tr>
+                  <td class="k">Source</td>
+                  <td id="sourceOut" class="v">Carpet fiber recovered from suspect jacket cuff</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="margin-top:12px; font-size:11px; color:#5a5a5a; line-height:1.5;">
+              <b>Source examples:</b> carpet, upholstery, suspect jacket, vehicle trunk liner, etc.
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div><span class="k">Unit:</span> Physical Forensics</div>
+          <div><span class="k">Page:</span> 1 of 1</div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const fiberType = document.getElementById('fiberType');
+    const fiberColor = document.getElementById('fiberColor');
+    const source = document.getElementById('source');
+    const diameter = document.getElementById('diameter');
+    const blueFiber = document.getElementById('blueFiber');
+
+    // Outputs
+    const typeOut = document.getElementById('typeOut');
+    const colorOut = document.getElementById('colorOut');
+    const diamOut = document.getElementById('diamOut');
+    const sourceOut = document.getElementById('sourceOut');
+
+    // Microscope fibers
+    const fiberA = document.getElementById('fiberA');
+    const fiberB = document.getElementById('fiberB');
+
+    // Buttons
+    const applyBtn = document.getElementById('applyBtn');
+    const randomBtn = document.getElementById('randomBtn');
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+    function rand(min,max){ return Math.random()*(max-min)+min; }
+    function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+    function setPrimaryColor(name){
+      // Primary fiber is fiberA. Secondary is fiberB (reference).
+      const c = (name || "Red").toLowerCase();
+      const map = {
+        red: getComputedStyle(document.documentElement).getPropertyValue('--fiberRed').trim(),
+        blue: getComputedStyle(document.documentElement).getPropertyValue('--fiberBlue').trim(),
+        black: '#111111',
+        white: '#f5f5f5',
+        gray: '#616161',
+        green: '#2e7d32'
+      };
+      const col = map[c] || map.red;
+      fiberA.style.color = col;
+
+      // If they choose Blue as primary, keep reference as red (for contrast), otherwise keep reference as blue.
+      const primaryIsBlue = c === 'blue';
+      fiberB.style.color = primaryIsBlue ? map.red : map.blue;
+    }
+
+    function setThicknessFromMicrons(m){
+      // visual mapping only: 5..1200 microns -> 1..6px
+      const mm = clamp(Number(m) || 40, 5, 1200);
+      const px = 1 + (mm - 5) * (5 / (1200 - 5)); // 1..6
+      const thickness = Math.round(px * 10) / 10;
+
+      // Use border-top thickness via CSS var-ish approach:
+      fiberA.style.setProperty('--t', thickness);
+      fiberB.style.setProperty('--t2', Math.max(1, thickness - 0.5));
+
+      // Actually apply by changing pseudo isn't possible, so we change a custom border using a child element trick:
+      // We'll implement thickness by setting border-top on ::after via currentColor using a CSS variable? Not possible.
+      // Instead: update inline style with a background-size effect by setting a real border on the element itself,
+      // and keep ::after for color. We'll do it by setting border-top width on the element and keep ::after consistent.
+      fiberA.style.borderTop = `${thickness}px solid transparent`;
+      fiberB.style.borderTop = `${Math.max(1, thickness-0.5)}px solid transparent`;
+      fiberA.style.setProperty('--line', thickness);
+      fiberB.style.setProperty('--line', Math.max(1, thickness-0.5));
+
+      // Also adjust highlight line thickness (the ::before stays 1px; fine).
+    }
+
+    function shuffleView(){
+      const a1 = rand(12, 55);
+      const a2 = rand(-55, -12);
+      fiberA.style.transform = `translate(-50%,-50%) rotate(${a1}deg)`;
+      fiberB.style.transform = `translate(-50%,-50%) rotate(${a2}deg)`;
+    }
+
+    function apply(){
+      typeOut.textContent = (fiberType.value || "").trim() || "—";
+      colorOut.textContent = (fiberColor.value || "").trim() || "—";
+      sourceOut.textContent = (source.value || "").trim() || "—";
+
+      const d = clamp(Number(diameter.value) || 0, 1, 99999);
+      diamOut.textContent = `${d} μm`;
+
+      setPrimaryColor(fiberColor.value);
+      setThicknessFromMicrons(d);
+
+      // Secondary reference swap option
+      const refIsBlue = blueFiber.value.includes("Blue");
+      fiberB.style.color = refIsBlue ? getComputedStyle(document.documentElement).getPropertyValue('--fiberBlue').trim()
+                                     : getComputedStyle(document.documentElement).getPropertyValue('--fiberRed').trim();
+    }
+
+    function randomize(){
+      const types = ["Nylon", "Wool", "Cotton", "Polyester", "Acrylic", "Rayon"];
+      const colors = ["Red","Blue","Black","White","Gray","Green"];
+      const sources = [
+        "Carpet fiber recovered from suspect jacket cuff",
+        "Upholstery fiber from vehicle rear seat",
+        "Thread fragment from victim shirt hem",
+        "Fiber trapped under fingernail (right hand)",
+        "Rug fiber from hallway runner"
+      ];
+      fiberType.value = types[randInt(0, types.length-1)];
+      fiberColor.value = colors[randInt(0, colors.length-1)];
+      source.value = sources[randInt(0, sources.length-1)];
+      diameter.value = randInt(12, 85);
+      blueFiber.value = (Math.random() > 0.5) ? "Blue reference thread" : "Red reference thread";
+      shuffleView();
+      apply();
+    }
+
+    applyBtn.addEventListener('click', apply);
+    randomBtn.addEventListener('click', randomize);
+    [fiberType, fiberColor, source, diameter, blueFiber].forEach(el=>{
+      el.addEventListener('input', apply);
+      el.addEventListener('change', apply);
+    });
+
+    shuffleView();
+    apply();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `fiber_analysis_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

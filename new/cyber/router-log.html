@@ -1,0 +1,688 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Router / WiFi Log</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Router "2005 admin panel" vibe */
+      --ui-bg:#f0f3f7;
+      --ui-ink:#1a1a1a;
+      --ui-blue:#2e5ea7;
+      --ui-blue2:#1f4d90;
+      --ui-gray:#c9d2dd;
+      --ui-border:#8ea0b6;
+      --ui-inset:#ffffff;
+      --ui-tab:#e6ecf5;
+      --ui-tab2:#d4deec;
+      --ui-warn:#b00020;
+      --ui-info:#1f4d90;
+      --ui-row:#ffffff;
+      --ui-row2:#f6f8fb;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:90px; resize:vertical; }
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Faux 2005 admin panel container */
+    .router-ui{
+      width: 980px;
+      background:var(--ui-bg);
+      color:var(--ui-ink);
+      border:2px solid var(--ui-border);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      font-family: Tahoma, Verdana, Arial, sans-serif; /* 2005 vibe */
+    }
+
+    /* Top brand bar */
+    .router-top{
+      background:linear-gradient(#3d6db7, #234f93);
+      color:#fff;
+      padding:10px 12px;
+      border-bottom:2px solid #1a3f77;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight:700;
+      letter-spacing:.02em;
+      font-size:14px;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+    .brand .badge{
+      background:rgba(255,255,255,.18);
+      border:1px solid rgba(255,255,255,.28);
+      padding:3px 8px;
+      border-radius:3px; /* boxy */
+      font-size:11px;
+      letter-spacing:.06em;
+    }
+
+    .router-top .right{
+      font-size:12px;
+      opacity:.95;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .router-top .right i{ opacity:.95; }
+
+    /* Tabs/crumb area */
+    .crumbs{
+      background:linear-gradient(var(--ui-tab), var(--ui-tab2));
+      border-bottom:1px solid var(--ui-border);
+      padding:8px 12px;
+      font-size:12px;
+      color:#1f2a36;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .crumbs .path{
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+    .crumbs .path span{
+      color:#0f2d5a;
+    }
+
+    /* Main split inside router UI (classic left menu) */
+    .router-main{
+      display:flex;
+      min-height:640px;
+    }
+
+    .nav{
+      width:210px;
+      border-right:1px solid var(--ui-border);
+      background:linear-gradient(#e7edf6, #d6e0ee);
+      padding:10px;
+    }
+    .nav .nav-box{
+      border:1px solid var(--ui-border);
+      background:#fff;
+      box-shadow: inset 0 1px 0 var(--ui-inset);
+    }
+    .nav .nav-title{
+      background:linear-gradient(#3d6db7, #234f93);
+      color:#fff;
+      padding:6px 8px;
+      font-weight:700;
+      font-size:12px;
+      letter-spacing:.02em;
+    }
+    .nav a{
+      display:block;
+      padding:7px 8px;
+      font-size:12px;
+      color:#12355f;
+      text-decoration:none;
+      border-top:1px solid #e2e8f1;
+    }
+    .nav a:hover{
+      background:#f2f6ff;
+      text-decoration:underline;
+    }
+    .nav a.active{
+      background:#e9f1ff;
+      font-weight:700;
+    }
+
+    .content{
+      flex:1;
+      padding:12px;
+    }
+
+    .panel{
+      border:1px solid var(--ui-border);
+      background:#fff;
+      box-shadow: inset 0 1px 0 var(--ui-inset);
+    }
+    .panel .panel-head{
+      background:linear-gradient(#f2f6fb, #e1e8f4);
+      border-bottom:1px solid var(--ui-border);
+      padding:8px 10px;
+      font-weight:700;
+      font-size:12px;
+      color:#0f2d5a;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .panel .panel-head .btn-mini{
+      font-size:11px;
+      background:#f6f8fb;
+      border:1px solid #b8c7db;
+      padding:4px 8px;
+      border-radius:2px;
+      cursor:default;
+      color:#0f2d5a;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:12px;
+    }
+    thead th{
+      background:#f2f2f2;
+      border-bottom:1px solid #d0d0d0;
+      border-top:1px solid #d0d0d0;
+      padding:7px 8px;
+      text-align:left;
+      color:#1f2a36;
+      white-space:nowrap;
+    }
+    tbody td{
+      padding:7px 8px;
+      border-bottom:1px solid #e5e5e5;
+      vertical-align:top;
+    }
+    tbody tr:nth-child(odd){ background:var(--ui-row); }
+    tbody tr:nth-child(even){ background:var(--ui-row2); }
+
+    col.tag{ width:110px; }
+    col.ts{ width:190px; }
+    col.msg{ width:auto; }
+
+    .tag{
+      font-weight:700;
+      font-family:"Courier Prime", monospace; /* bracket tags look “router-ish” */
+      letter-spacing:.01em;
+    }
+    .tag.info{ color:var(--ui-info); }
+    .tag.warn{ color:var(--ui-warn); }
+
+    .foot{
+      padding:10px 12px;
+      font-size:11px;
+      color:#243240;
+      border-top:1px solid var(--ui-border);
+      background:linear-gradient(#eaf0f8, #dde7f4);
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .foot .muted{ color:#3f5268; }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .router-ui{ width:100%; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-router"></i> Cyber &amp; Telecom — Router Logs</h2>
+
+      <div class="cc-card">
+        <label class="label" for="brandName">Router Brand Name</label>
+        <input id="brandName" class="input" type="text" value="TP-LINK" />
+
+        <p class="tiny">
+          Live Preview mimics a 2005-era admin panel (ugly frames, blue/gray UI).
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label">Add Log Entry</label>
+
+        <div class="row">
+          <div>
+            <label class="label" for="level">Level</label>
+            <select id="level" class="select">
+              <option value="INFO" selected>[INFO]</option>
+              <option value="WARNING">[WARNING]</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="timestamp">Timestamp</label>
+            <input id="timestamp" class="input" type="text" placeholder="2025-12-28 16:41:05" value="2025-12-28 16:41:05" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="message">Event Message</label>
+        <input id="message" class="input" type="text"
+          value="DHCP IP: 192.168.1.4 assigned to MAC: A1:B2:C3:D4:E5:F6" />
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Entry</button>
+          <button id="clearBtn" class="ghost"><i class="fa-solid fa-trash" style="margin-right:8px"></i>Clear Logs</button>
+        </div>
+
+        <p class="tiny">Adds a new log line to the table instantly.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <p class="tiny">Exports the router admin page (right panel) as evidence.</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="router-ui" aria-label="Router Admin Panel Logs">
+
+        <div class="router-top">
+          <div class="brand">
+            <i class="fa-solid fa-network-wired"></i>
+            <span id="brandOut">TP-LINK</span>
+            <span class="badge">ADMIN PANEL</span>
+          </div>
+          <div class="right">
+            <span><i class="fa-solid fa-user-gear"></i> admin</span>
+            <span>|</span>
+            <span><i class="fa-solid fa-clock"></i> <span id="nowOut">2025-12-28 16:41</span></span>
+          </div>
+        </div>
+
+        <div class="crumbs">
+          <div class="path">ADVANCED SETTINGS &gt; <span>LOGS</span></div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <span style="font-size:11px; color:#35506f;">Help</span>
+            <i class="fa-solid fa-circle-question" style="color:#35506f;"></i>
+          </div>
+        </div>
+
+        <div class="router-main">
+          <aside class="nav" aria-label="Left Navigation">
+            <div class="nav-box">
+              <div class="nav-title">Menu</div>
+              <a href="javascript:void(0)">Status</a>
+              <a href="javascript:void(0)">Wireless</a>
+              <a href="javascript:void(0)">LAN</a>
+              <a href="javascript:void(0)">WAN</a>
+              <a href="javascript:void(0)" class="active">Advanced</a>
+              <a href="javascript:void(0)">Firewall</a>
+              <a href="javascript:void(0)">Administration</a>
+            </div>
+          </aside>
+
+          <div class="content">
+            <div class="panel">
+              <div class="panel-head">
+                <div>System Log</div>
+                <div class="btn-mini">Refresh</div>
+              </div>
+
+              <table>
+                <colgroup>
+                  <col class="tag" />
+                  <col class="ts" />
+                  <col class="msg" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>Type</th>
+                    <th>Timestamp</th>
+                    <th>Event</th>
+                  </tr>
+                </thead>
+                <tbody id="logBody">
+                  <tr>
+                    <td><span class="tag info">[INFO]</span></td>
+                    <td>2025-12-28 16:34:10</td>
+                    <td>WAN Connection: Up (PPPoE) — IP: 10.22.14.88</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tag info">[INFO]</span></td>
+                    <td>2025-12-28 16:36:02</td>
+                    <td>DHCP IP: 192.168.1.4 assigned to MAC: A1:B2:C3:D4:E5:F6</td>
+                  </tr>
+                  <tr>
+                    <td><span class="tag warn">[WARNING]</span></td>
+                    <td>2025-12-28 16:37:45</td>
+                    <td>DoS Attack: SYN Flood detected from 173.44.19.2</td>
+                  </tr>
+                </tbody>
+              </table>
+
+              <div class="foot">
+                <div class="muted">Firmware Version: <b>V1.0.4.22</b></div>
+                <div class="muted">© <span id="brandFoot">TP-LINK</span> — Advanced Settings</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ------- Live header time (roughly like router UI) -------
+    const nowOut = document.getElementById('nowOut');
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function nowStamp(minuteOnly=false){
+      const d = new Date();
+      const base = `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+      if(minuteOnly) return base;
+      return `${base}:${pad(d.getSeconds())}`;
+    }
+    setInterval(() => nowOut.textContent = nowStamp(true), 1000);
+    nowOut.textContent = nowStamp(true);
+
+    // ------- Brand binding -------
+    const brandName = document.getElementById('brandName');
+    const brandOut = document.getElementById('brandOut');
+    const brandFoot = document.getElementById('brandFoot');
+    function syncBrand(){
+      const b = (brandName.value || "ROUTER").trim();
+      brandOut.textContent = b.toUpperCase();
+      brandFoot.textContent = b.toUpperCase();
+    }
+    brandName.addEventListener('input', syncBrand);
+    syncBrand();
+
+    // ------- Add log entries -------
+    const level = document.getElementById('level');
+    const timestamp = document.getElementById('timestamp');
+    const message = document.getElementById('message');
+    const addBtn = document.getElementById('addBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const logBody = document.getElementById('logBody');
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll('&','&amp;')
+        .replaceAll('<','&lt;')
+        .replaceAll('>','&gt;')
+        .replaceAll('"','&quot;')
+        .replaceAll("'","&#039;");
+    }
+
+    function addEntry(){
+      const lvl = level.value;
+      const ts = (timestamp.value || "").trim();
+      const msg = (message.value || "").trim();
+      if(!ts || !msg) return;
+
+      const tr = document.createElement('tr');
+      const cls = (lvl === "WARNING") ? "warn" : "info";
+      tr.innerHTML = `
+        <td><span class="tag ${cls}">[${escapeHtml(lvl)}]</span></td>
+        <td>${escapeHtml(ts)}</td>
+        <td>${escapeHtml(msg)}</td>
+      `;
+
+      // Insert newest at top (common)
+      logBody.insertBefore(tr, logBody.firstChild);
+
+      // Convenience: update timestamp to "now" for next entry
+      timestamp.value = nowStamp(false);
+
+      message.value = "";
+      message.focus();
+    }
+
+    addBtn.addEventListener('click', addEntry);
+    [timestamp, message].forEach(el => {
+      el.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter'){
+          e.preventDefault();
+          addEntry();
+        }
+      });
+    });
+
+    clearBtn.addEventListener('click', () => {
+      logBody.innerHTML = "";
+    });
+
+    // Seed: default timestamp to now
+    timestamp.value = nowStamp(false);
+
+    // ------- Export -------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#f0f3f7",
+        scale,
+        useCORS: true
+      });
+
+      const base = `router_log_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Life Insurance Policy</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@500;600;700&family=Roboto:wght@300;400;500;700&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#101010;
+      --hair:#dcdcdc;
+      --hair2:#bdbdbd;
+      --soft:#f6f6f6;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Playfair Display", serif;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      font-size:13px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4 */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:26px;
+      position:relative;
+      font-family:"Playfair Display", serif; /* requirement */
+    }
+
+    /* Double-line border */
+    .borderOuter{
+      position:absolute;
+      inset:18px;
+      border:2px solid #111;
+      pointer-events:none;
+    }
+    .borderInner{
+      position:absolute;
+      inset:26px;
+      border:1px solid #111;
+      pointer-events:none;
+    }
+
+    .doc{
+      position:relative;
+      padding:20px 20px 24px;
+    }
+
+    .header{
+      text-align:center;
+      margin-top:8px;
+    }
+    .title{
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:22px;
+      margin:0;
+    }
+    .sub{
+      margin-top:10px;
+      font-size:12px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#333;
+    }
+
+    .divider{
+      margin:18px 0 14px;
+      border-top:1px solid #111;
+    }
+
+    .metaRow{
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      font-size:12px;
+      color:#222;
+      margin-bottom:12px;
+    }
+    .metaRow .box{
+      flex:1;
+      border:1px solid var(--hair);
+      background:var(--soft);
+      padding:10px 12px;
+      border-radius:8px;
+    }
+    .metaRow .k{
+      display:block;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#444;
+      margin-bottom:6px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .metaRow .v{
+      font-weight:700;
+      letter-spacing:.01em;
+      color:#111;
+      word-break:break-word;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+      margin-top:6px;
+    }
+    td{
+      border:1px solid var(--hair2);
+      padding:12px 12px;
+      vertical-align:top;
+    }
+    td.k{
+      width:34%;
+      background:#f7f7f7;
+      font-size:12px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#333;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    td.v{
+      font-weight:700;
+      color:#111;
+      word-break:break-word;
+    }
+
+    .faceAmount{
+      font-size:22px;
+      font-weight:800;
+      letter-spacing:.02em;
+    }
+
+    .note{
+      margin-top:14px;
+      font-size:12px;
+      color:#333;
+      line-height:1.55;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    .footer{
+      margin-top:22px;
+      border-top:1px solid #111;
+      padding-top:16px;
+      display:flex;
+      justify-content:space-between;
+      gap:16px;
+      align-items:flex-end;
+    }
+    .signed{
+      font-size:12px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#222;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .sigBlock{
+      width:320px;
+      text-align:right;
+    }
+    .sigLine{
+      margin-top:10px;
+      border-bottom:1px solid #111;
+      height:22px;
+    }
+    .sigName{
+      margin-top:6px;
+      font-family:"Shadows Into Light", cursive;
+      font-size:20px;
+      color:#111;
+      opacity:.85;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .metaRow{ flex-direction:column; }
+      .sigBlock{ width:100%; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-file-contract"></i> Financial Intel — Life Insurance Policy</h2>
+
+      <div class="cc-card">
+        <label class="label" for="companyIn">Company / Carrier Name</label>
+        <input id="companyIn" class="input" type="text" value="MUTUAL LIFE ASSURANCE COMPANY" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="insuredIn">Insured Name</label>
+            <input id="insuredIn" class="input" type="text" value="INSURED NAME" />
+          </div>
+          <div>
+            <label class="label" for="beneficiaryIn">Beneficiary Name</label>
+            <input id="beneficiaryIn" class="input" type="text" value="BENEFICIARY NAME" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="policyNoIn">Policy Number</label>
+            <input id="policyNoIn" class="input" type="text" value="MLA-0000000" />
+          </div>
+          <div>
+            <label class="label" for="effectiveIn">Effective Date</label>
+            <input id="effectiveIn" class="input" type="text" value="2025-12-30" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="amountIn">Face Amount (USD)</label>
+        <input id="amountIn" class="input" type="text" value="1000000" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="randPolicy" class="btnGhost">
+            <i class="fa-solid fa-dice" style="margin-right:8px;"></i>
+            Randomize Policy #
+          </button>
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="importJson" class="btnGhost">
+          <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+          Import JSON (Paste)
+        </button>
+
+        <p class="tiny">Everything is editable for new stories: names, policy formats, dates, and any payout amount.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Life insurance policy preview">
+        <div class="borderOuter"></div>
+        <div class="borderInner"></div>
+
+        <div class="doc">
+          <div class="header">
+            <h1 class="title" id="companyOut">MUTUAL LIFE ASSURANCE COMPANY</h1>
+            <div class="sub">Policy Face Page • Contract Summary</div>
+          </div>
+
+          <div class="divider"></div>
+
+          <div class="metaRow">
+            <div class="box">
+              <span class="k">Policy Number</span>
+              <span class="v" id="policyNoOut">—</span>
+            </div>
+            <div class="box">
+              <span class="k">Effective Date</span>
+              <span class="v" id="effectiveOut">—</span>
+            </div>
+          </div>
+
+          <table aria-label="Table of benefits">
+            <tbody>
+              <tr>
+                <td class="k">Insured</td>
+                <td class="v" id="insuredOut">—</td>
+              </tr>
+              <tr>
+                <td class="k">Beneficiary</td>
+                <td class="v" id="beneficiaryOut">—</td>
+              </tr>
+              <tr>
+                <td class="k">Face Amount</td>
+                <td class="v"><span class="faceAmount" id="amountOut">$0.00</span></td>
+              </tr>
+            </tbody>
+          </table>
+
+          <div class="note">
+            This face page summarizes key policy details for recordkeeping. Terms, exclusions, and conditions apply as set forth in the full contract.
+          </div>
+
+          <div class="footer">
+            <div class="signed">Signed at the Home Office</div>
+            <div class="sigBlock">
+              <div class="sigLine"></div>
+              <div class="sigName">Authorized Signature</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const companyIn = document.getElementById('companyIn');
+    const insuredIn = document.getElementById('insuredIn');
+    const beneficiaryIn = document.getElementById('beneficiaryIn');
+    const policyNoIn = document.getElementById('policyNoIn');
+    const effectiveIn = document.getElementById('effectiveIn');
+    const amountIn = document.getElementById('amountIn');
+
+    const companyOut = document.getElementById('companyOut');
+    const insuredOut = document.getElementById('insuredOut');
+    const beneficiaryOut = document.getElementById('beneficiaryOut');
+    const policyNoOut = document.getElementById('policyNoOut');
+    const effectiveOut = document.getElementById('effectiveOut');
+    const amountOut = document.getElementById('amountOut');
+
+    const randPolicy = document.getElementById('randPolicy');
+    const exportJson = document.getElementById('exportJson');
+    const importJson = document.getElementById('importJson');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function parseMoney(s){
+      const n = Number(String(s).replace(/[$,]/g,'').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+
+    function fmtMoney(n){
+      const v = Number(n);
+      return "$" + v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function randomPolicy(){
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let out = "MLA-";
+      for(let i=0;i<7;i++) out += chars[Math.floor(Math.random()*chars.length)];
+      return out;
+    }
+
+    function build(){
+      companyOut.textContent = sanitize(companyIn.value) || "—";
+      insuredOut.textContent = sanitize(insuredIn.value) || "—";
+      beneficiaryOut.textContent = sanitize(beneficiaryIn.value) || "—";
+      policyNoOut.textContent = sanitize(policyNoIn.value) || "—";
+      effectiveOut.textContent = sanitize(effectiveIn.value) || "—";
+      amountOut.textContent = fmtMoney(parseMoney(amountIn.value));
+    }
+
+    randPolicy.addEventListener('click', ()=>{
+      policyNoIn.value = randomPolicy();
+      build();
+    });
+
+    [companyIn, insuredIn, beneficiaryIn, policyNoIn, effectiveIn, amountIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    function getState(){
+      return {
+        company: companyIn.value,
+        insured: insuredIn.value,
+        beneficiary: beneficiaryIn.value,
+        policyNo: policyNoIn.value,
+        effective: effectiveIn.value,
+        amount: amountIn.value
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      companyIn.value = s.company ?? companyIn.value;
+      insuredIn.value = s.insured ?? insuredIn.value;
+      beneficiaryIn.value = s.beneficiary ?? beneficiaryIn.value;
+      policyNoIn.value = s.policyNo ?? policyNoIn.value;
+      effectiveIn.value = s.effective ?? effectiveIn.value;
+      amountIn.value = s.amount ?? amountIn.value;
+      build();
+    }
+
+    exportJson.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJson.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `life_insurance_policy_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

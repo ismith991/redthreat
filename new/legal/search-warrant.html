@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Search Warrant</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Playfair+Display:wght@500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111;
+      --soft:#f4f4f4;
+      --rule:#bdbdbd;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:13px;
+      font-weight:800;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:130px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:30px 34px;
+      position:relative;
+      overflow:hidden;
+      font-family: "Times New Roman", Times, serif; /* requirement */
+    }
+
+    .wm{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      user-select:none;
+      z-index:0;
+      opacity:.06;
+      font-weight:900;
+      letter-spacing:.28em;
+      font-size:120px;
+      transform:rotate(-24deg);
+      color:#000;
+      white-space:nowrap;
+      text-transform:uppercase;
+    }
+
+    .doc{ position:relative; z-index:1; }
+
+    .courtHeader{
+      text-align:center;
+      line-height:1.2;
+      margin-top:6px;
+    }
+    .courtHeader .line1{
+      font-weight:700;
+      font-size:18px;
+      text-transform:uppercase;
+      letter-spacing:.04em;
+    }
+    .courtHeader .line2{
+      margin-top:8px;
+      font-weight:700;
+      font-size:15px;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+    }
+
+    .rule{
+      margin:16px 0 14px;
+      border-top:2px solid #111;
+    }
+
+    .title{
+      text-align:center;
+      font-weight:800;
+      font-size:20px;
+      text-transform:uppercase;
+      letter-spacing:.08em;
+      margin:10px 0 6px;
+    }
+    .subtitle{
+      text-align:center;
+      font-size:12px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#222;
+      margin:0 0 14px;
+    }
+
+    .body{
+      font-size:13.5px;
+      line-height:1.55;
+      color:#111;
+    }
+
+    .block{
+      margin-top:12px;
+      padding:12px 14px;
+      border:1px solid var(--rule);
+      background:#fcfcfc;
+    }
+    .k{
+      display:block;
+      font-size:12px;
+      font-weight:700;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      margin-bottom:8px;
+    }
+    .v{
+      font-size:14px;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+
+    .sigWrap{
+      margin-top:22px;
+      display:flex;
+      justify-content:space-between;
+      gap:20px;
+      align-items:flex-end;
+    }
+
+    .issued{
+      flex:1;
+      font-size:13.5px;
+      line-height:1.55;
+    }
+
+    .judgeBlock{
+      width:320px;
+      text-align:right;
+      font-size:13.5px;
+    }
+    .sigLine{
+      margin-top:10px;
+      border-bottom:1px solid #111;
+      height:24px;
+    }
+    .judgeTitle{
+      margin-top:8px;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      color:#222;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .sigWrap{ flex-direction:column; align-items:stretch; }
+      .judgeBlock{ width:100%; text-align:left; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-gavel"></i> Legal & Court — Search Warrant</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="stateIn">State</label>
+            <input id="stateIn" class="input" type="text" value="CALIFORNIA" />
+          </div>
+          <div>
+            <label class="label" for="countyIn">County / District (Optional)</label>
+            <input id="countyIn" class="input" type="text" value="COUNTY OF LOS ANGELES" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="addressIn">Location (Address to be searched)</label>
+        <textarea id="addressIn" class="textarea">1234 WILLOW RIDGE AVE
+APT 12B
+LOS ANGELES, CA 90026</textarea>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="itemsIn">Items to Seize (List)</label>
+        <textarea id="itemsIn" class="textarea">• Electronic devices (phones, laptops, external drives)
+• Bloodied clothing and footwear
+• Any written notes, diaries, or ledgers
+• Receipts, bank records, and shipping labels</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="judgeIn">Judge Name</label>
+            <input id="judgeIn" class="input" type="text" value="HON. J. KENSINGTON" />
+          </div>
+          <div>
+            <label class="label" for="courtroomIn">Courtroom / Dept (Optional)</label>
+            <input id="courtroomIn" class="input" type="text" value="DEPT. 14" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="timeIn">Issued Time</label>
+            <input id="timeIn" class="input" type="text" value="09:15" />
+          </div>
+          <div>
+            <label class="label" for="dateIn">Issued Date</label>
+            <input id="dateIn" class="input" type="text" value="2025-12-30" />
+          </div>
+        </div>
+
+        <p class="tiny">Everything is editable. Use JSON export/import to reuse warrant formats across cases.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Search warrant preview">
+        <div class="wm">COURT ORDER</div>
+
+        <div class="doc">
+          <div class="courtHeader">
+            <div class="line1" id="courtLineOut">SUPERIOR COURT OF THE STATE OF CALIFORNIA</div>
+            <div class="line2" id="countyOut">COUNTY OF LOS ANGELES</div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="title">SEARCH AND SEIZURE WARRANT</div>
+          <div class="subtitle">Court Order • Lawful Authority • Return Required</div>
+
+          <div class="body">
+            <p><strong>TO ANY PEACE OFFICER OF THIS STATE:</strong> Proof by affidavit having been made before me this day, and it appearing that there is probable cause to believe that certain property described herein is being concealed and/or kept at the location identified below, <strong>you are commanded to search</strong> the location and any appurtenant areas under its control, and to seize the property described, and to make due return of this warrant within the time required by law.</p>
+
+            <div class="block">
+              <span class="k">Location</span>
+              <div class="v" id="addressOut">—</div>
+            </div>
+
+            <div class="block">
+              <span class="k">Property / Items to Seize</span>
+              <div class="v" id="itemsOut">—</div>
+            </div>
+
+            <p>This warrant is issued upon a sworn statement and is to be executed in a lawful manner. Officers are authorized to use reasonable means to gain entry if necessary and permitted by law.</p>
+
+            <div class="sigWrap">
+              <div class="issued">
+                <p><strong>Issued at</strong> <span id="timeOut">—</span> <strong>on</strong> <span id="dateOut">—</span>.</p>
+              </div>
+
+              <div class="judgeBlock">
+                <div class="sigLine"></div>
+                <div><strong id="judgeOut">—</strong></div>
+                <div class="judgeTitle">Judge of the Superior Court <span id="deptOut"></span></div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const stateIn = document.getElementById('stateIn');
+    const countyIn = document.getElementById('countyIn');
+    const addressIn = document.getElementById('addressIn');
+    const itemsIn = document.getElementById('itemsIn');
+    const judgeIn = document.getElementById('judgeIn');
+    const courtroomIn = document.getElementById('courtroomIn');
+    const timeIn = document.getElementById('timeIn');
+    const dateIn = document.getElementById('dateIn');
+
+    const courtLineOut = document.getElementById('courtLineOut');
+    const countyOut = document.getElementById('countyOut');
+    const addressOut = document.getElementById('addressOut');
+    const itemsOut = document.getElementById('itemsOut');
+    const judgeOut = document.getElementById('judgeOut');
+    const deptOut = document.getElementById('deptOut');
+    const timeOut = document.getElementById('timeOut');
+    const dateOut = document.getElementById('dateOut');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function build(){
+      const st = sanitize(stateIn.value) || "STATE";
+      courtLineOut.textContent = `SUPERIOR COURT OF THE STATE OF ${st.toUpperCase()}`;
+
+      const cty = sanitize(countyIn.value);
+      countyOut.textContent = cty ? cty.toUpperCase() : "";
+
+      addressOut.textContent = sanitize(addressIn.value) || "—";
+      itemsOut.textContent = sanitize(itemsIn.value) || "—";
+
+      judgeOut.textContent = sanitize(judgeIn.value) || "—";
+      const dept = sanitize(courtroomIn.value);
+      deptOut.textContent = dept ? `• ${dept.toUpperCase()}` : "";
+
+      timeOut.textContent = sanitize(timeIn.value) || "—";
+      dateOut.textContent = sanitize(dateIn.value) || "—";
+    }
+
+    [stateIn, countyIn, addressIn, itemsIn, judgeIn, courtroomIn, timeIn, dateIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    function getState(){
+      return {
+        state: stateIn.value,
+        county: countyIn.value,
+        address: addressIn.value,
+        items: itemsIn.value,
+        judge: judgeIn.value,
+        dept: courtroomIn.value,
+        time: timeIn.value,
+        date: dateIn.value
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      stateIn.value = s.state ?? stateIn.value;
+      countyIn.value = s.county ?? countyIn.value;
+      addressIn.value = s.address ?? addressIn.value;
+      itemsIn.value = s.items ?? itemsIn.value;
+      judgeIn.value = s.judge ?? judgeIn.value;
+      courtroomIn.value = s.dept ?? courtroomIn.value;
+      timeIn.value = s.time ?? timeIn.value;
+      dateIn.value = s.date ?? dateIn.value;
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `search_warrant_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

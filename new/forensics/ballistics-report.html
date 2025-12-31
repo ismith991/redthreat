@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Ballistics Microscopy Report</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Report page */
+      --paper:#ffffff;
+      --ink:#111111;
+      --sub:#5c5c5c;
+      --rule:#e7e7e7;
+      --seal:#1a1a1a;
+      --stamp:#f3f3f3;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split-Screen Layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:120px; resize:vertical; }
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Report canvas (A4-ish) */
+    .report{
+      width: 980px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d6d6d6;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      font-family:"Courier Prime", monospace;
+    }
+
+    .r-top{
+      padding:18px 18px 12px 18px;
+      border-bottom:1px solid var(--rule);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .unit{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .unit .badge{
+      width:38px;height:38px;
+      border-radius:10px;
+      border:2px solid var(--seal);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--stamp);
+    }
+    .unit .badge i{
+      font-size:18px;
+      color:#111;
+    }
+    .unit .titles{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+    }
+    .unit .h1{
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:15px;
+      line-height:1.1;
+    }
+    .unit .h2{
+      font-size:11px;
+      color:var(--sub);
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+
+    .meta{
+      border:1px solid #d8d8d8;
+      border-radius:10px;
+      padding:10px 12px;
+      min-width:320px;
+      background:#fff;
+      font-size:12px;
+      line-height:1.55;
+    }
+    .meta .k{ color:#666; }
+    .meta .v{ font-weight:700; color:#111; }
+
+    .r-body{
+      padding:16px 18px 16px 18px;
+    }
+
+    .section-title{
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:700;
+      color:#222;
+      margin:0 0 10px 0;
+    }
+
+    /* Split microscope view */
+    .scope-wrap{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:18px;
+      align-items:start;
+      margin-bottom:16px;
+    }
+
+    .scope-card{
+      border:1px solid #d9d9d9;
+      border-radius:12px;
+      padding:12px;
+      background:#fff;
+    }
+    .scope-label{
+      font-size:12px;
+      color:#333;
+      font-weight:700;
+      margin-bottom:10px;
+      letter-spacing:.02em;
+    }
+
+    .scope{
+      width:300px;
+      height:300px;
+      border-radius:50%;
+      border:8px solid #111;
+      margin:0 auto;
+      position:relative;
+      overflow:hidden;
+      background:#2a2a2a;
+      box-shadow:
+        inset 0 0 0 2px rgba(255,255,255,.08),
+        inset 0 0 55px rgba(0,0,0,.65);
+    }
+
+    /* Striations */
+    .striations{
+      position:absolute;
+      inset:-18px;
+      background:
+        /* subtle base texture */
+        radial-gradient(circle at 40% 35%, rgba(255,255,255,.12), rgba(0,0,0,.65) 55%, rgba(0,0,0,.85) 100%),
+        /* scratch marks */
+        repeating-linear-gradient(
+          0deg,
+          rgba(230,230,230,.16) 0px,
+          rgba(230,230,230,.16) 1px,
+          rgba(0,0,0,0) 3px,
+          rgba(0,0,0,0) 7px
+        );
+      filter: contrast(1.2) brightness(.95);
+      transform: rotate(-6deg);
+      opacity:.98;
+      mix-blend-mode:screen;
+    }
+
+    .striations.offset{
+      transform: rotate(-6deg) translate(10px, 6px);
+      opacity:.96;
+      filter: contrast(1.25) brightness(.92);
+    }
+
+    /* Crosshair */
+    .cross{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:.35;
+    }
+    .cross::before, .cross::after{
+      content:"";
+      position:absolute;
+      background:rgba(255,255,255,.22);
+    }
+    .cross::before{
+      width:2px; height:100%;
+      left:50%; top:0;
+      transform:translateX(-50%);
+    }
+    .cross::after{
+      height:2px; width:100%;
+      top:50%; left:0;
+      transform:translateY(-50%);
+    }
+
+    .ring{
+      position:absolute;
+      inset:18px;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.16);
+      pointer-events:none;
+    }
+
+    /* Conclusion box */
+    .conclusion{
+      border:2px solid #111;
+      border-radius:12px;
+      padding:12px 12px 10px 12px;
+      background:#fff;
+    }
+    .conclusion .head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
+    }
+    .conclusion .t{
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+    .result{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:14px;
+      padding:6px 10px;
+      border-radius:10px;
+      border:1px solid #cfcfcf;
+      background:#f6f6f6;
+      white-space:nowrap;
+    }
+
+    .notes{
+      font-size:12px;
+      line-height:1.55;
+      color:#111;
+      white-space:pre-wrap;
+      margin:0;
+    }
+
+    .r-foot{
+      border-top:1px solid var(--rule);
+      padding:12px 18px;
+      font-size:11px;
+      color:#444;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      background:#fff;
+    }
+    .r-foot .k{ color:#777; }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .report{ width:100%; }
+    }
+    @media (max-width: 900px){
+      .scope-wrap{ grid-template-columns:1fr; }
+      .scope{ width:280px; height:280px; }
+      .meta{ min-width:0; width:100%; }
+      .r-top{ flex-direction:column; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-bullseye"></i> Forensics — Ballistics Report</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="caseNo">Case #</label>
+            <input id="caseNo" class="input" type="text" value="RTG-25-1287" />
+          </div>
+          <div>
+            <label class="label" for="itemNo">Evidence Item #</label>
+            <input id="itemNo" class="input" type="text" value="E-03 (Recovered Bullet)" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="firearm">Firearm Type</label>
+        <input id="firearm" class="input" type="text" value="9mm Glock 19" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="result">Microscopic Comparison Results</label>
+        <select id="result" class="select">
+          <option selected>POSITIVE MATCH</option>
+          <option>INCONCLUSIVE</option>
+          <option>ELIMINATION</option>
+        </select>
+
+        <p class="tiny">Circles simulate comparison microscopy with striation textures.</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="notes">Examiner Notes</label>
+        <textarea id="notes" class="textarea">Striation patterns observed on land impressions show agreement in class characteristics and sufficient agreement in individual characteristics between evidence bullet and test fire.</textarea>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="applyBtn" class="btn"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Apply</button>
+          <button id="shuffleBtn" class="ghost"><i class="fa-solid fa-arrows-rotate" style="margin-right:8px"></i>Shift Marks</button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="report" aria-label="Crime Lab Microscopy Comparison Report">
+
+        <div class="r-top">
+          <div class="unit">
+            <div class="badge" aria-hidden="true">
+              <i class="fa-solid fa-shield-halved"></i>
+            </div>
+            <div class="titles">
+              <div class="h1">FIREARMS &amp; TOOLMARKS UNIT</div>
+              <div class="h2">Microscopy Comparison Report — Bullet to Test Fire</div>
+            </div>
+          </div>
+
+          <div class="meta" aria-label="Case Metadata">
+            <div><span class="k">Case #:</span> <span id="caseOut" class="v">RTG-25-1287</span></div>
+            <div><span class="k">Evidence Item #:</span> <span id="itemOut" class="v">E-03 (Recovered Bullet)</span></div>
+            <div><span class="k">Firearm Type:</span> <span id="firearmOut" class="v">9mm Glock 19</span></div>
+            <div><span class="k">Report Date:</span> <span id="dateOut" class="v">2025-12-28</span></div>
+          </div>
+        </div>
+
+        <div class="r-body">
+          <div class="section-title">Comparison Microscope Views</div>
+
+          <div class="scope-wrap">
+            <div class="scope-card">
+              <div class="scope-label">Evidence Bullet (Crime Scene)</div>
+              <div class="scope" role="img" aria-label="Microscope view of evidence bullet striations">
+                <div id="leftMarks" class="striations"></div>
+                <div class="cross"></div>
+                <div class="ring"></div>
+              </div>
+            </div>
+
+            <div class="scope-card">
+              <div class="scope-label">Test Fire (Suspect Weapon)</div>
+              <div class="scope" role="img" aria-label="Microscope view of test fire striations">
+                <div id="rightMarks" class="striations offset"></div>
+                <div class="cross"></div>
+                <div class="ring"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="conclusion" aria-label="Microscopic Comparison Results">
+            <div class="head">
+              <div class="t">Microscopic Comparison Results</div>
+              <div id="resultOut" class="result">POSITIVE MATCH</div>
+            </div>
+            <p id="notesOut" class="notes">Striation patterns observed on land impressions show agreement in class characteristics and sufficient agreement in individual characteristics between evidence bullet and test fire.</p>
+          </div>
+        </div>
+
+        <div class="r-foot">
+          <div><span class="k">Lab Copy:</span> F&amp;T / Comparison Microscopy</div>
+          <div><span class="k">Page:</span> 1 of 1</div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const caseNo = document.getElementById('caseNo');
+    const itemNo = document.getElementById('itemNo');
+    const firearm = document.getElementById('firearm');
+    const result = document.getElementById('result');
+    const notes = document.getElementById('notes');
+
+    // Outputs
+    const caseOut = document.getElementById('caseOut');
+    const itemOut = document.getElementById('itemOut');
+    const firearmOut = document.getElementById('firearmOut');
+    const resultOut = document.getElementById('resultOut');
+    const notesOut = document.getElementById('notesOut');
+    const dateOut = document.getElementById('dateOut');
+
+    // Striation layers
+    const leftMarks = document.getElementById('leftMarks');
+    const rightMarks = document.getElementById('rightMarks');
+
+    // Buttons
+    const applyBtn = document.getElementById('applyBtn');
+    const shuffleBtn = document.getElementById('shuffleBtn');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function today(){
+      const d = new Date();
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
+    function apply(){
+      caseOut.textContent = (caseNo.value || "").trim();
+      itemOut.textContent = (itemNo.value || "").trim();
+      firearmOut.textContent = (firearm.value || "").trim();
+      resultOut.textContent = (result.value || "").trim();
+      notesOut.textContent = (notes.value || "").trim();
+      dateOut.textContent = today();
+    }
+
+    // Simple visual shift to make marks feel "different"
+    function shiftMarks(){
+      const dx1 = Math.floor(Math.random() * 22) - 11;
+      const dy1 = Math.floor(Math.random() * 22) - 11;
+      const dx2 = Math.floor(Math.random() * 28) - 14;
+      const dy2 = Math.floor(Math.random() * 28) - 14;
+
+      leftMarks.style.transform = `rotate(-6deg) translate(${dx1}px, ${dy1}px)`;
+      rightMarks.style.transform = `rotate(-6deg) translate(${dx2 + 10}px, ${dy2 + 6}px)`;
+    }
+
+    applyBtn.addEventListener('click', apply);
+    shuffleBtn.addEventListener('click', shiftMarks);
+
+    [caseNo,itemNo,firearm,result,notes].forEach(el=>{
+      el.addEventListener('input', apply);
+      el.addEventListener('change', apply);
+    });
+
+    apply();
+    shiftMarks();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `ballistics_report_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

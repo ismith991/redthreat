@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — IP Geolocation Report</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Report (tracker) */
+      --paper:#ffffff;
+      --ink:#151515;
+      --sub:#5f6368;
+      --rule:#e6e6e6;
+      --chip:#f3f4f6;
+      --blue:#1a73e8;
+      --map:#f2f2f2;
+      --mapline:#d9d9d9;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Tracker result card */
+    .report{
+      width: 980px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d6d6d6;
+      border-radius:14px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+    }
+
+    .topbar{
+      background:#ffffff;
+      border-bottom:1px solid var(--rule);
+      padding:14px 16px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      color:#202124;
+      font-weight:700;
+      letter-spacing:.02em;
+      font-size:14px;
+    }
+    .brand i{ color:var(--blue); }
+
+    .stamp{
+      font-size:12px;
+      color:var(--sub);
+      display:flex;
+      align-items:center;
+      gap:8px;
+    }
+    .stamp .chip{
+      background:var(--chip);
+      border:1px solid #e6e6e6;
+      padding:6px 10px;
+      border-radius:999px;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.2fr .8fr;
+      gap:0;
+    }
+
+    /* Map placeholder */
+    .map{
+      min-height:520px;
+      position:relative;
+      background:
+        linear-gradient(var(--mapline) 1px, transparent 1px),
+        linear-gradient(90deg, var(--mapline) 1px, transparent 1px),
+        var(--map);
+      background-size: 34px 34px, 34px 34px, auto;
+      border-right:1px solid var(--rule);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .map .label{
+      position:absolute;
+      top:14px;
+      left:14px;
+      background:rgba(255,255,255,.85);
+      border:1px solid #e0e0e0;
+      border-radius:10px;
+      padding:8px 10px;
+      font-size:12px;
+      color:#3c4043;
+      letter-spacing:.02em;
+    }
+    .pin{
+      width:18px;
+      height:18px;
+      border-radius:50%;
+      background:var(--blue);
+      box-shadow:0 10px 22px rgba(0,0,0,.22);
+      position:relative;
+    }
+    .pin::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:50%;
+      width:6px;
+      height:6px;
+      transform:translate(-50%,-50%);
+      border-radius:50%;
+      background:#fff;
+      opacity:.95;
+    }
+    .pin::before{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:100%;
+      transform:translateX(-50%);
+      width:0;height:0;
+      border-left:7px solid transparent;
+      border-right:7px solid transparent;
+      border-top:12px solid var(--blue);
+      margin-top:-3px;
+      filter:drop-shadow(0 6px 10px rgba(0,0,0,.18));
+    }
+
+    /* Data panel */
+    .panel{
+      padding:18px 18px 16px 18px;
+    }
+
+    .ip{
+      font-size:26px;
+      font-weight:800;
+      letter-spacing:.02em;
+      color:#202124;
+      line-height:1.15;
+      margin:0 0 8px 0;
+      font-family: "Courier Prime", monospace; /* makes it feel “techy” */
+    }
+
+    .subline{
+      font-size:13px;
+      color:var(--sub);
+      margin:0 0 14px 0;
+    }
+
+    .kv{
+      border-top:1px solid var(--rule);
+      padding-top:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .kv-row{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 10px;
+      border:1px solid #ededed;
+      border-radius:12px;
+      background:#fff;
+    }
+
+    .k{
+      font-size:12px;
+      color:#6b6b6b;
+      letter-spacing:.03em;
+      text-transform:uppercase;
+      flex:0 0 auto;
+      width:120px;
+      padding-top:2px;
+    }
+    .v{
+      flex:1;
+      text-align:right;
+      font-size:14px;
+      color:#202124;
+      font-weight:700;
+      word-break:break-word;
+    }
+    .v.mono{
+      font-family:"Courier Prime", monospace;
+      font-weight:700;
+    }
+
+    .footer{
+      border-top:1px solid var(--rule);
+      padding:12px 16px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-size:12px;
+      color:var(--sub);
+      background:#fff;
+    }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .report{ width:100%; }
+    }
+    @media (max-width: 940px){
+      .grid{ grid-template-columns:1fr; }
+      .map{ border-right:none; border-bottom:1px solid var(--rule); min-height:420px; }
+      .v{ text-align:left; }
+      .kv-row{ flex-direction:column; align-items:flex-start; }
+      .k{ width:auto; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-location-crosshairs"></i> Cyber &amp; Telecom — IP Geolocation</h2>
+
+      <div class="cc-card">
+        <label class="label" for="ip">Target IP</label>
+        <input id="ip" class="input" type="text" value="73.162.44.19" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="isp">ISP Name</label>
+        <input id="isp" class="input" type="text" value="Comcast Cable" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="city">City / Region</label>
+        <input id="city" class="input" type="text" value="Portland, OR" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="lat">Latitude</label>
+            <input id="lat" class="input" type="text" value="45.5152" />
+          </div>
+          <div>
+            <label class="label" for="lon">Longitude</label>
+            <input id="lon" class="input" type="text" value="-122.6784" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="applyBtn" class="btn"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Apply</button>
+          <button id="randomBtn" class="ghost"><i class="fa-solid fa-dice" style="margin-right:8px"></i>Randomize</button>
+        </div>
+
+        <p class="tiny">Map is a placeholder (grid + pin). Data panel updates instantly.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="input">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="input">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <p class="tiny">Exports the IP tracker report (right panel) as evidence.</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="report" aria-label="IP Tracker Result">
+        <div class="topbar">
+          <div class="brand">
+            <i class="fa-solid fa-map-location-dot"></i>
+            <span>IP Tracker Result</span>
+          </div>
+          <div class="stamp">
+            <span class="chip"><i class="fa-solid fa-shield" style="margin-right:8px; color:#5f6368;"></i>Lookup Complete</span>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="map" aria-label="Map Placeholder">
+            <div class="label"><i class="fa-solid fa-layer-group" style="margin-right:8px; color:#5f6368;"></i>Map Placeholder</div>
+            <div class="pin" title="Approximate location"></div>
+          </div>
+
+          <div class="panel" aria-label="Geolocation Data Panel">
+            <h1 id="ipOut" class="ip">73.162.44.19</h1>
+            <p id="subOut" class="subline">Geolocation summary for the queried IP address.</p>
+
+            <div class="kv">
+              <div class="kv-row">
+                <div class="k">ISP</div>
+                <div id="ispOut" class="v">Comcast Cable</div>
+              </div>
+              <div class="kv-row">
+                <div class="k">City / Region</div>
+                <div id="cityOut" class="v">Portland, OR</div>
+              </div>
+              <div class="kv-row">
+                <div class="k">Coordinates</div>
+                <div id="coordOut" class="v mono">45.5152, -122.6784</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div><i class="fa-regular fa-file-lines" style="margin-right:8px;"></i>Report type: IP GEOLOCATION</div>
+          <div id="tsOut">Generated: 2025-12-28 16:41</div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ------- Elements -------
+    const ip = document.getElementById('ip');
+    const isp = document.getElementById('isp');
+    const city = document.getElementById('city');
+    const lat = document.getElementById('lat');
+    const lon = document.getElementById('lon');
+
+    const ipOut = document.getElementById('ipOut');
+    const ispOut = document.getElementById('ispOut');
+    const cityOut = document.getElementById('cityOut');
+    const coordOut = document.getElementById('coordOut');
+    const tsOut = document.getElementById('tsOut');
+
+    const applyBtn = document.getElementById('applyBtn');
+    const randomBtn = document.getElementById('randomBtn');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function nowStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function apply(){
+      ipOut.textContent = (ip.value || "").trim();
+      ispOut.textContent = (isp.value || "").trim();
+      cityOut.textContent = (city.value || "").trim();
+      coordOut.textContent = `${(lat.value || "").trim()}, ${(lon.value || "").trim()}`;
+      tsOut.textContent = `Generated: ${nowStamp()}`;
+    }
+
+    function randInt(min,max){ return Math.floor(Math.random()*(max-min+1))+min; }
+    function randomIP(){
+      return `${randInt(11,223)}.${randInt(0,255)}.${randInt(0,255)}.${randInt(1,254)}`;
+    }
+    function randomCoord(){
+      const la = (Math.random()*180 - 90).toFixed(4);
+      const lo = (Math.random()*360 - 180).toFixed(4);
+      return { la, lo };
+    }
+    const sampleISPs = ["Comcast Cable","AT&T Internet","Verizon Fios","T-Mobile Home Internet","British Telecom","Telstra","Vodafone","Airtel Broadband"];
+    const sampleCities = ["Portland, OR","New York, NY","Austin, TX","London, UK","Sydney, AU","Toronto, ON","Berlin, DE","Kathmandu, NP"];
+
+    randomBtn.addEventListener('click', () => {
+      ip.value = randomIP();
+      isp.value = sampleISPs[randInt(0, sampleISPs.length-1)];
+      city.value = sampleCities[randInt(0, sampleCities.length-1)];
+      const c = randomCoord();
+      lat.value = c.la;
+      lon.value = c.lo;
+      apply();
+    });
+
+    applyBtn.addEventListener('click', apply);
+    [ip, isp, city, lat, lon].forEach(el => el.addEventListener('input', apply));
+
+    apply();
+
+    // ------- Export -------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `ip_geolocation_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

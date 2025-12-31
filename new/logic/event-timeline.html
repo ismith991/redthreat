@@ -1,0 +1,1568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Event Timeline</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      /* Global Noir */
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Timeline board */
+      --board:#0b0b0b;
+      --board2:#101010;
+      --cardDark:#141414;
+      --cardBorder:#2b2b2b;
+      --whiteCard:#f5f5f5;
+      --whiteInk:#101010;
+
+      --threadGlow: rgba(211,47,47,.45);
+      --inkBlue: rgba(0, 180, 255, .65);
+
+      --leftLabel:"SUSPECT";
+      --rightLabel:"VICTIM";
+      --centerLabel:"INCIDENT";
+
+      --laneGap: 80px; /* center lane width */
+      --rowGap: 14px;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT PANEL — Control Center */
+    .control{
+      width:30%;
+      min-width:340px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex; align-items:center; justify-content:space-between; gap:10px;
+      margin:0 0 12px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:13px;
+    }
+    .cc-title .left{
+      display:flex; align-items:center; gap:10px;
+    }
+    .cc-title i{ color:var(--red); }
+    .cc-badge{
+      border:1px solid rgba(211,47,47,.65);
+      color:var(--red);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:10px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .cc-badge .dot{
+      width:8px; height:8px; border-radius:50%;
+      background:var(--red);
+      box-shadow:0 0 12px rgba(211,47,47,.65);
+    }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:12px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:11px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:92px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.92), rgba(211,47,47,.76));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    .divider{
+      height:1px;
+      background:var(--line);
+      margin:12px 0;
+      opacity:.9;
+    }
+
+    .miniList{
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      max-height:260px;
+      overflow:auto;
+      padding-right:4px;
+    }
+    .miniItem{
+      border:1px solid #2f2f2f;
+      border-radius:12px;
+      background:#141414;
+      padding:10px 10px;
+      display:grid;
+      grid-template-columns: 1fr auto;
+      gap:10px;
+      cursor:pointer;
+    }
+    .miniItem:hover{ border-color:rgba(211,47,47,.6); }
+    .miniMeta{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(224,224,224,.85);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      flex-wrap:wrap;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:6px;
+      padding:4px 8px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.16);
+      background:rgba(255,255,255,.06);
+      font-size:10px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#eaeaea;
+      white-space:nowrap;
+    }
+    .pill.red{ border-color:rgba(211,47,47,.55); color:#ffd6d6; background:rgba(211,47,47,.12); }
+    .pill.white{ border-color:rgba(255,255,255,.35); color:#ffffff; background:rgba(255,255,255,.08); }
+    .pill.neutral{ border-color:rgba(180,180,180,.35); color:#e7e7e7; background:rgba(180,180,180,.08); }
+    .miniDesc{
+      margin-top:6px;
+      color:rgba(224,224,224,.85);
+      font-size:13px;
+      line-height:1.35;
+      max-height:2.7em;
+      overflow:hidden;
+    }
+    .miniBtns{
+      display:flex;
+      gap:8px;
+      align-items:flex-start;
+    }
+    .miniIconBtn{
+      width:34px; height:34px;
+      border-radius:10px;
+      border:1px solid #2f2f2f;
+      background:#101010;
+      color:#e0e0e0;
+      cursor:pointer;
+    }
+    .miniIconBtn:hover{ border-color:rgba(211,47,47,.55); }
+    .miniIconBtn:active{ transform:translateY(1px); }
+
+    /* RIGHT PANEL — Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* Evidence canvas (export target) */
+    .canvas{
+      width: 980px;
+      max-width: 100%;
+      min-height: 1200px;
+      border-radius:18px;
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      background:
+        radial-gradient(900px 420px at 15% 10%, rgba(255,255,255,.05), transparent 55%),
+        radial-gradient(900px 420px at 85% 85%, rgba(0,0,0,.35), transparent 55%),
+        linear-gradient(180deg, var(--board), var(--board2));
+      position:relative;
+      overflow:hidden;
+      padding:22px 22px 26px;
+    }
+
+    /* subtle “board grain” */
+    .canvas:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        repeating-linear-gradient(0deg, rgba(255,255,255,.03) 0 1px, transparent 1px 6px),
+        repeating-linear-gradient(90deg, rgba(255,255,255,.015) 0 1px, transparent 1px 10px);
+      opacity:.25;
+      pointer-events:none;
+    }
+
+    .canvasHeader{
+      position:relative;
+      z-index:1;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:14px;
+      padding:10px 12px 14px;
+      border-radius:14px;
+      background:rgba(0,0,0,.32);
+      border:1px solid rgba(255,255,255,.06);
+    }
+
+    .caseTitle{
+      margin:0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:18px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .caseTitle i{
+      color:var(--red);
+      filter:drop-shadow(0 0 10px rgba(211,47,47,.35));
+    }
+    .caseSub{
+      margin:8px 0 0 0;
+      font-size:12px;
+      color:rgba(224,224,224,.78);
+      letter-spacing:.02em;
+      line-height:1.5;
+      max-width:560px;
+    }
+
+    .legend{
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      align-items:flex-end;
+    }
+    .legendRow{
+      display:flex;
+      gap:8px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+    .legendTag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 10px;
+      border-radius:999px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.04);
+      color:rgba(224,224,224,.9);
+      white-space:nowrap;
+    }
+    .legendTag .mark{
+      width:10px; height:10px; border-radius:50%;
+      background:rgba(255,255,255,.35);
+      box-shadow:0 0 10px rgba(255,255,255,.12);
+    }
+    .legendTag.red .mark{
+      background:var(--red);
+      box-shadow:0 0 12px var(--threadGlow);
+    }
+    .legendTag.white .mark{
+      background:#fff;
+      box-shadow:0 0 12px rgba(255,255,255,.22);
+    }
+
+    .timelineWrap{
+      position:relative;
+      z-index:1;
+      margin-top:14px;
+      padding:18px 10px 10px;
+    }
+
+    /* central thread line */
+    .timelineWrap:before{
+      content:"";
+      position:absolute;
+      left:50%;
+      top:0;
+      bottom:0;
+      width:3px;
+      transform:translateX(-50%);
+      background:linear-gradient(180deg, rgba(211,47,47,.35), rgba(211,47,47,.95), rgba(211,47,47,.35));
+      box-shadow: 0 0 18px rgba(211,47,47,.25), 0 0 40px rgba(211,47,47,.12);
+      border-radius:999px;
+    }
+
+    .lanesHeader{
+      display:grid;
+      grid-template-columns: 1fr var(--laneGap) 1fr;
+      align-items:center;
+      gap:0;
+      margin:4px 0 12px;
+      opacity:.95;
+      position:relative;
+      z-index:2;
+    }
+    .laneLabel{
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      font-size:11px;
+      color:rgba(224,224,224,.88);
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .laneLabel.left{ justify-content:flex-end; padding-right:14px; }
+    .laneLabel.right{ justify-content:flex-start; padding-left:14px; }
+    .laneLabel.center{ justify-content:center; color:rgba(224,224,224,.72); }
+    .laneChip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      background:rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.08);
+    }
+    .laneChip .miniDot{
+      width:7px; height:7px; border-radius:50%;
+      background:rgba(224,224,224,.35);
+    }
+    .laneChip.left .miniDot{ background:rgba(255,255,255,.22); }
+    .laneChip.right .miniDot{ background:rgba(255,255,255,.22); }
+    .laneChip.center .miniDot{ background:var(--red); box-shadow:0 0 10px var(--threadGlow); }
+
+    /* timeline items */
+    .timeline{
+      display:flex;
+      flex-direction:column;
+      gap:var(--rowGap);
+      padding:6px 0 18px;
+    }
+
+    .tItem{
+      position:relative;
+      display:grid;
+      grid-template-columns: 1fr var(--laneGap) 1fr;
+      align-items:center;
+      min-height:98px;
+    }
+
+    /* node dot on thread */
+    .tItem .dot{
+      width:14px; height:14px;
+      border-radius:50%;
+      background:rgba(255,255,255,.10);
+      border:1px solid rgba(255,255,255,.25);
+      margin:0 auto;
+      position:relative;
+      box-shadow:0 0 18px rgba(0,0,0,.55);
+    }
+    .tItem.red .dot{
+      background:var(--red);
+      border-color:rgba(211,47,47,.65);
+      box-shadow:0 0 18px rgba(211,47,47,.30), 0 0 35px rgba(211,47,47,.12);
+    }
+    .tItem.white .dot{
+      background:#fff;
+      border-color:rgba(255,255,255,.6);
+      box-shadow:0 0 18px rgba(255,255,255,.18);
+    }
+    .tItem.neutral .dot{
+      background:rgba(255,255,255,.25);
+      border-color:rgba(255,255,255,.35);
+    }
+
+    /* connector stubs (in center lane only; cards hug the lane) */
+    .tItem.left .connector,
+    .tItem.right .connector{
+      height:2px;
+      background:rgba(255,255,255,.16);
+      position:absolute;
+      top:50%;
+      transform:translateY(-50%);
+      width:calc(var(--laneGap) / 2 - 8px);
+    }
+    .tItem.left .connector{
+      left:calc(50% - (var(--laneGap) / 2) + 4px);
+    }
+    .tItem.right .connector{
+      left:calc(50% + 4px);
+    }
+    .tItem.red.left .connector,
+    .tItem.red.right .connector{
+      background:rgba(211,47,47,.55);
+      box-shadow:0 0 10px rgba(211,47,47,.15);
+    }
+    .tItem.white.left .connector,
+    .tItem.white.right .connector{
+      background:rgba(255,255,255,.65);
+    }
+
+    .cell{
+      display:flex;
+      align-items:center;
+    }
+    .cell.left{ justify-content:flex-end; padding-right:10px; }
+    .cell.right{ justify-content:flex-start; padding-left:10px; }
+    .cell.center{ justify-content:center; }
+
+    .card{
+      width:min(420px, 100%);
+      border-radius:14px;
+      background:rgba(20,20,20,.90);
+      border:1px solid var(--cardBorder);
+      box-shadow:0 10px 24px rgba(0,0,0,.35);
+      padding:12px 12px 10px;
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* tiny “file edge” top strip */
+    .card:before{
+      content:"";
+      position:absolute;
+      left:0; top:0; right:0;
+      height:3px;
+      background:rgba(255,255,255,.10);
+      opacity:.9;
+    }
+    .tItem.red .card:before{
+      background:linear-gradient(90deg, rgba(211,47,47,.15), rgba(211,47,47,.75), rgba(211,47,47,.15));
+    }
+    .tItem.white .card:before{
+      background:linear-gradient(90deg, rgba(255,255,255,.20), rgba(255,255,255,.85), rgba(255,255,255,.20));
+    }
+
+    .card .meta{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:10px;
+      margin-bottom:8px;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      color:rgba(224,224,224,.86);
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:5px 9px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.14);
+      background:rgba(255,255,255,.06);
+      font-size:10px;
+      letter-spacing:.14em;
+      white-space:nowrap;
+    }
+    .badge i{ opacity:.9; }
+
+    .tItem.left .badge{ }
+    .tItem.right .badge{ }
+    .tItem.center .badge{
+      border-color:rgba(211,47,47,.32);
+      background:rgba(211,47,47,.10);
+    }
+
+    .tItem.red .badge{
+      border-color:rgba(211,47,47,.40);
+      background:rgba(211,47,47,.12);
+      color:#ffd6d6;
+    }
+    .tItem.white .badge{
+      border-color:rgba(255,255,255,.30);
+      background:rgba(255,255,255,.08);
+      color:#fff;
+    }
+
+    .time{
+      opacity:.9;
+      white-space:nowrap;
+    }
+
+    .desc{
+      color:rgba(224,224,224,.92);
+      font-size:14px;
+      line-height:1.45;
+      letter-spacing:.01em;
+      white-space:pre-wrap;
+      word-break:break-word;
+    }
+
+    /* white/alibi cards */
+    .tItem.white .card{
+      background:rgba(245,245,245,.96);
+      border-color:rgba(255,255,255,.35);
+      box-shadow:0 12px 26px rgba(0,0,0,.35);
+    }
+    .tItem.white .card .meta{
+      color:rgba(16,16,16,.78);
+    }
+    .tItem.white .desc{
+      color:rgba(16,16,16,.88);
+    }
+
+    /* red/crime cards */
+    .tItem.red .card{
+      border-color:rgba(211,47,47,.40);
+      box-shadow:0 12px 30px rgba(0,0,0,.45), 0 0 24px rgba(211,47,47,.10);
+    }
+
+    /* center (incident) card placement */
+    .tItem.center .cell.left,
+    .tItem.center .cell.right{ display:none; }
+    .tItem.center{
+      grid-template-columns: 1fr;
+      justify-items:center;
+      min-height:110px;
+    }
+    .tItem.center .centerStack{
+      width:min(560px, 100%);
+      display:flex;
+      align-items:center;
+      gap:12px;
+      position:relative;
+    }
+    .tItem.center .centerDot{
+      width:18px; height:18px;
+      border-radius:50%;
+      background:var(--red);
+      border:1px solid rgba(211,47,47,.75);
+      box-shadow:0 0 18px rgba(211,47,47,.30);
+      flex:0 0 auto;
+    }
+    .tItem.center.red .centerDot{ background:var(--red); }
+    .tItem.center.white .centerDot{ background:#fff; border-color:rgba(255,255,255,.7); box-shadow:0 0 18px rgba(255,255,255,.20); }
+    .tItem.center.neutral .centerDot{ background:rgba(255,255,255,.35); border-color:rgba(255,255,255,.35); }
+
+    .tItem.center .card{
+      width:100%;
+    }
+    .tItem.center .card{
+      outline:1px solid rgba(211,47,47,.20);
+    }
+    .tItem.center.white .card{
+      outline:1px solid rgba(255,255,255,.25);
+    }
+
+    .emptyState{
+      margin:26px auto 0;
+      max-width:760px;
+      padding:18px 18px;
+      border-radius:16px;
+      border:1px dashed rgba(255,255,255,.14);
+      background:rgba(0,0,0,.25);
+      color:rgba(224,224,224,.78);
+      text-align:center;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+      position:relative;
+      z-index:1;
+    }
+    .emptyState i{ color:var(--red); margin-right:10px; }
+
+    @media (max-width: 980px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .canvas{ width:100%; min-height:auto; }
+      .card{ width:min(460px, 100%); }
+      .timelineWrap{ padding:14px 0 0; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <div class="cc-title">
+        <div class="left"><i class="fa-solid fa-diagram-project"></i> Red Thread Logic — Event Timeline</div>
+        <div class="cc-badge"><span class="dot"></span> Secure Connection</div>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="caseTitleIn">Case Title</label>
+        <input id="caseTitleIn" class="input" type="text" value="RED THREAD // EVENT TIMELINE" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="caseSubIn">Case Notes (optional)</label>
+        <input id="caseSubIn" class="input" type="text" value="Chronological reconstruction — left: suspect, right: victim, center: incident." />
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="leftLabelIn">Left Label</label>
+            <input id="leftLabelIn" class="input" type="text" value="Suspect" />
+          </div>
+          <div>
+            <label class="label" for="rightLabelIn">Right Label</label>
+            <input id="rightLabelIn" class="input" type="text" value="Victim" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="centerLabelIn">Center Label</label>
+        <input id="centerLabelIn" class="input" type="text" value="Incident" />
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="dtIn">Date/Time</label>
+            <input id="dtIn" class="input" type="datetime-local" />
+          </div>
+          <div>
+            <label class="label" for="sideIn">Side</label>
+            <select id="sideIn" class="select">
+              <option value="left">Left (Suspect)</option>
+              <option value="right">Right (Victim)</option>
+              <option value="center">Center (Crime/Key Event)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="descIn">Event Description</label>
+        <textarea id="descIn" class="textarea" placeholder="Describe what happened..."></textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="codeIn">Color Code</label>
+            <select id="codeIn" class="select">
+              <option value="red">Red (Crime / Threat)</option>
+              <option value="white">White (Alibi / Verified)</option>
+              <option value="neutral" selected>Neutral</option>
+              <option value="custom">Custom</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="customColorIn">Custom Color</label>
+            <input id="customColorIn" class="input" type="color" value="#d32f2f" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="addBtn" class="btn">
+            <i class="fa-solid fa-circle-plus" style="margin-right:8px;"></i>
+            Add Event
+          </button>
+          <button id="updateBtn" class="btnGhost" title="Update selected event">
+            <i class="fa-solid fa-pen-to-square" style="margin-right:8px;"></i>
+            Update
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="clearBtn" class="btnGhost">
+            <i class="fa-solid fa-eraser" style="margin-right:8px;"></i>
+            Clear Form
+          </button>
+          <button id="demoBtn" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+            Demo Fill
+          </button>
+        </div>
+
+        <p class="tiny">Tip: leave Date/Time empty if you want a “floating” event. Use **White** for verified alibis.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="sortBtn" class="btnGhost">
+            <i class="fa-solid fa-arrow-down-short-wide" style="margin-right:8px;"></i>
+            Sort by Date/Time
+          </button>
+          <button id="wipeBtn" class="btnGhost">
+            <i class="fa-solid fa-trash" style="margin-right:8px;"></i>
+            Wipe All
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <label class="label">Current Events (click to edit)</label>
+        <div class="miniList" id="miniList"></div>
+
+        <p class="tiny">Use ↑/↓ to reorder manually if you don’t want strict chronological order.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section class="canvas" id="captureArea" aria-label="Detective timeline board">
+        <div class="canvasHeader">
+          <div>
+            <h1 class="caseTitle"><i class="fa-solid fa-thread"></i> <span id="caseTitleOut">RED THREAD // EVENT TIMELINE</span></h1>
+            <p class="caseSub" id="caseSubOut">Chronological reconstruction — left: suspect, right: victim, center: incident.</p>
+          </div>
+          <div class="legend">
+            <div class="legendRow">
+              <div class="legendTag red"><span class="mark"></span> CRIME / THREAT</div>
+              <div class="legendTag white"><span class="mark"></span> VERIFIED / ALIBI</div>
+              <div class="legendTag"><span class="mark" style="background:rgba(255,255,255,.28)"></span> NEUTRAL</div>
+            </div>
+            <div class="legendRow">
+              <div class="legendTag" style="border-color:rgba(211,47,47,.22); background:rgba(211,47,47,.08);">
+                <i class="fa-solid fa-circle-info" style="color:var(--red)"></i>
+                EVENTS CONNECTED TO THREAD
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="timelineWrap">
+          <div class="lanesHeader">
+            <div class="laneLabel left">
+              <span class="laneChip left"><span class="miniDot"></span><span id="leftLabelOut">SUSPECT</span></span>
+            </div>
+            <div class="laneLabel center">
+              <span class="laneChip center"><span class="miniDot"></span><span id="centerLabelOut">INCIDENT</span></span>
+            </div>
+            <div class="laneLabel right">
+              <span class="laneChip right"><span class="miniDot"></span><span id="rightLabelOut">VICTIM</span></span>
+            </div>
+          </div>
+
+          <div class="timeline" id="timeline"></div>
+
+          <div class="emptyState" id="emptyState">
+            <i class="fa-solid fa-circle-plus"></i>
+            ADD EVENTS IN THE CONTROL CENTER TO BUILD THE TIMELINE
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ---------- Helpers ----------
+    const $ = (id) => document.getElementById(id);
+    const sanitize = (s) => (s ?? "").toString().trim();
+
+    function uid(){
+      return "evt_" + Math.random().toString(16).slice(2) + "_" + Date.now().toString(16);
+    }
+
+    function formatDT(val){
+      // input is datetime-local value "YYYY-MM-DDTHH:MM"
+      if(!val) return "";
+      try{
+        const d = new Date(val);
+        if(Number.isNaN(d.getTime())) return val.replace("T"," ");
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth()+1).padStart(2,"0");
+        const dd = String(d.getDate()).padStart(2,"0");
+        const hh = String(d.getHours()).padStart(2,"0");
+        const mi = String(d.getMinutes()).padStart(2,"0");
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+      }catch(e){
+        return val.replace("T"," ");
+      }
+    }
+
+    function tryDate(val){
+      if(!val) return null;
+      const d = new Date(val);
+      return Number.isNaN(d.getTime()) ? null : d;
+    }
+
+    // ---------- State ----------
+    let events = [];
+    let selectedId = null;
+
+    // ---------- Inputs ----------
+    const caseTitleIn = $("caseTitleIn");
+    const caseSubIn = $("caseSubIn");
+    const leftLabelIn = $("leftLabelIn");
+    const rightLabelIn = $("rightLabelIn");
+    const centerLabelIn = $("centerLabelIn");
+
+    const dtIn = $("dtIn");
+    const sideIn = $("sideIn");
+    const descIn = $("descIn");
+    const codeIn = $("codeIn");
+    const customColorIn = $("customColorIn");
+
+    const addBtn = $("addBtn");
+    const updateBtn = $("updateBtn");
+    const clearBtn = $("clearBtn");
+    const demoBtn = $("demoBtn");
+
+    const sortBtn = $("sortBtn");
+    const wipeBtn = $("wipeBtn");
+
+    const miniList = $("miniList");
+
+    const exportJsonBtn = $("exportJson");
+    const importJsonBtn = $("importJson");
+
+    // ---------- Outputs ----------
+    const caseTitleOut = $("caseTitleOut");
+    const caseSubOut = $("caseSubOut");
+    const leftLabelOut = $("leftLabelOut");
+    const rightLabelOut = $("rightLabelOut");
+    const centerLabelOut = $("centerLabelOut");
+
+    const timelineEl = $("timeline");
+    const emptyState = $("emptyState");
+
+    // Export
+    const downloadBtn = $("downloadBtn");
+    const exportType = $("exportType");
+    const exportScale = $("exportScale");
+    const captureArea = $("captureArea");
+
+    // ---------- UI Build ----------
+    function buildHeader(){
+      caseTitleOut.textContent = sanitize(caseTitleIn.value) || "RED THREAD // EVENT TIMELINE";
+      caseSubOut.textContent = sanitize(caseSubIn.value) || "";
+
+      leftLabelOut.textContent = (sanitize(leftLabelIn.value) || "Suspect").toUpperCase();
+      rightLabelOut.textContent = (sanitize(rightLabelIn.value) || "Victim").toUpperCase();
+      centerLabelOut.textContent = (sanitize(centerLabelIn.value) || "Incident").toUpperCase();
+    }
+
+    function sideLabel(side){
+      if(side === "left") return sanitize(leftLabelIn.value) || "Suspect";
+      if(side === "right") return sanitize(rightLabelIn.value) || "Victim";
+      return sanitize(centerLabelIn.value) || "Incident";
+    }
+
+    function sideIcon(side){
+      if(side === "left") return "fa-user-secret";
+      if(side === "right") return "fa-user";
+      return "fa-bullseye";
+    }
+
+    function codeLabel(code){
+      if(code === "red") return "CRIME";
+      if(code === "white") return "ALIBI";
+      if(code === "neutral") return "NEUTRAL";
+      return "CUSTOM";
+    }
+
+    function renderTimeline(){
+      timelineEl.innerHTML = "";
+      miniList.innerHTML = "";
+
+      emptyState.style.display = events.length ? "none" : "block";
+
+      // Timeline items
+      for(const ev of events){
+        const item = document.createElement("div");
+        item.className = `tItem ${ev.side} ${ev.code}`;
+        if(ev.code === "custom"){
+          // apply custom styling via CSS variables on card and dot glow
+          item.style.setProperty("--custom", ev.customColor || "#d32f2f");
+        }
+
+        if(ev.side === "center"){
+          const stack = document.createElement("div");
+          stack.className = "centerStack";
+
+          const centerDot = document.createElement("div");
+          centerDot.className = "centerDot";
+          if(ev.code === "custom"){
+            centerDot.style.background = ev.customColor || "#d32f2f";
+            centerDot.style.borderColor = (ev.customColor || "#d32f2f");
+            centerDot.style.boxShadow = `0 0 18px ${hexToRgba(ev.customColor || "#d32f2f", .25)}`;
+          }
+          stack.appendChild(centerDot);
+
+          const card = buildCard(ev);
+          if(ev.code === "custom"){
+            // custom card edge and top strip
+            card.style.borderColor = hexToRgba(ev.customColor || "#d32f2f", .50);
+            card.style.boxShadow = `0 12px 30px rgba(0,0,0,.45), 0 0 24px ${hexToRgba(ev.customColor || "#d32f2f", .12)}`;
+            card.style.outline = `1px solid ${hexToRgba(ev.customColor || "#d32f2f", .18)}`;
+          }
+          stack.appendChild(card);
+          item.appendChild(stack);
+        } else {
+          // Left/Right lanes
+          const leftCell = document.createElement("div");
+          leftCell.className = "cell left";
+
+          const centerCell = document.createElement("div");
+          centerCell.className = "cell center";
+
+          const rightCell = document.createElement("div");
+          rightCell.className = "cell right";
+
+          const connector = document.createElement("div");
+          connector.className = "connector";
+          if(ev.code === "custom"){
+            connector.style.background = hexToRgba(ev.customColor || "#d32f2f", .55);
+            connector.style.boxShadow = `0 0 10px ${hexToRgba(ev.customColor || "#d32f2f", .15)}`;
+          }
+
+          const dot = document.createElement("div");
+          dot.className = "dot";
+          if(ev.code === "custom"){
+            dot.style.background = ev.customColor || "#d32f2f";
+            dot.style.borderColor = hexToRgba(ev.customColor || "#d32f2f", .70);
+            dot.style.boxShadow = `0 0 18px ${hexToRgba(ev.customColor || "#d32f2f", .22)}`;
+          }
+
+          centerCell.appendChild(dot);
+
+          const card = buildCard(ev);
+          if(ev.code === "custom"){
+            card.style.borderColor = hexToRgba(ev.customColor || "#d32f2f", .50);
+            card.style.boxShadow = `0 12px 30px rgba(0,0,0,.45), 0 0 24px ${hexToRgba(ev.customColor || "#d32f2f", .10)}`;
+          }
+
+          if(ev.side === "left"){
+            leftCell.appendChild(card);
+          } else {
+            rightCell.appendChild(card);
+          }
+
+          item.appendChild(leftCell);
+          item.appendChild(centerCell);
+          item.appendChild(rightCell);
+          item.appendChild(connector);
+        }
+
+        // click-to-select (for quick editing)
+        item.addEventListener("click", (e)=>{
+          e.stopPropagation();
+          selectEvent(ev.id);
+        });
+
+        timelineEl.appendChild(item);
+
+        // Mini list item
+        miniList.appendChild(buildMini(ev));
+      }
+
+      // highlight selected
+      highlightSelected();
+    }
+
+    function buildCard(ev){
+      const card = document.createElement("div");
+      card.className = "card";
+
+      // custom top strip for custom color
+      if(ev.code === "custom"){
+        card.style.position = "relative";
+        card.style.overflow = "hidden";
+        // override top strip by adding inline gradient using ::before already there
+        card.style.setProperty("--customTop", ev.customColor || "#d32f2f");
+      }
+
+      const meta = document.createElement("div");
+      meta.className = "meta";
+
+      const badge = document.createElement("div");
+      badge.className = "badge";
+      const icon = document.createElement("i");
+      icon.className = `fa-solid ${sideIcon(ev.side)}`;
+      badge.appendChild(icon);
+
+      const bText = document.createElement("span");
+      bText.textContent = `${sideLabel(ev.side)} • ${codeLabel(ev.code)}`;
+      badge.appendChild(bText);
+
+      if(ev.code === "custom"){
+        badge.style.borderColor = hexToRgba(ev.customColor || "#d32f2f", .40);
+        badge.style.background = hexToRgba(ev.customColor || "#d32f2f", .12);
+        badge.style.color = "#ffeaea";
+      }
+
+      const time = document.createElement("div");
+      time.className = "time";
+      time.textContent = ev.dt ? formatDT(ev.dt) : "";
+
+      meta.appendChild(badge);
+      meta.appendChild(time);
+
+      const desc = document.createElement("div");
+      desc.className = "desc";
+      desc.textContent = ev.desc || "";
+
+      card.appendChild(meta);
+      card.appendChild(desc);
+
+      // custom top strip, since ::before is fixed; add a thin overlay
+      if(ev.code === "custom"){
+        const strip = document.createElement("div");
+        strip.style.position = "absolute";
+        strip.style.left = "0";
+        strip.style.top = "0";
+        strip.style.right = "0";
+        strip.style.height = "3px";
+        strip.style.background = `linear-gradient(90deg, ${hexToRgba(ev.customColor || "#d32f2f", .18)}, ${hexToRgba(ev.customColor || "#d32f2f", .85)}, ${hexToRgba(ev.customColor || "#d32f2f", .18)})`;
+        strip.style.opacity = ".95";
+        card.appendChild(strip);
+      }
+
+      return card;
+    }
+
+    function buildMini(ev){
+      const wrap = document.createElement("div");
+      wrap.className = "miniItem";
+      wrap.dataset.id = ev.id;
+
+      const left = document.createElement("div");
+
+      const meta = document.createElement("div");
+      meta.className = "miniMeta";
+
+      const pillSide = document.createElement("span");
+      pillSide.className = "pill";
+      pillSide.textContent = ev.side.toUpperCase();
+
+      const pillCode = document.createElement("span");
+      pillCode.className = "pill " + (ev.code === "custom" ? "red" : ev.code);
+      pillCode.textContent = codeLabel(ev.code);
+
+      const pillTime = document.createElement("span");
+      pillTime.className = "pill neutral";
+      pillTime.innerHTML = `<i class="fa-regular fa-clock"></i> ${ev.dt ? formatDT(ev.dt) : "NO TIME"}`;
+
+      if(ev.code === "custom"){
+        pillCode.style.borderColor = hexToRgba(ev.customColor || "#d32f2f", .55);
+        pillCode.style.background = hexToRgba(ev.customColor || "#d32f2f", .12);
+        pillCode.style.color = "#ffd6d6";
+      }
+
+      meta.appendChild(pillSide);
+      meta.appendChild(pillCode);
+      meta.appendChild(pillTime);
+
+      const desc = document.createElement("div");
+      desc.className = "miniDesc";
+      desc.textContent = ev.desc || "";
+
+      left.appendChild(meta);
+      left.appendChild(desc);
+
+      const btns = document.createElement("div");
+      btns.className = "miniBtns";
+
+      const up = document.createElement("button");
+      up.className = "miniIconBtn";
+      up.title = "Move up";
+      up.innerHTML = `<i class="fa-solid fa-arrow-up"></i>`;
+      up.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        moveEvent(ev.id, -1);
+      });
+
+      const down = document.createElement("button");
+      down.className = "miniIconBtn";
+      down.title = "Move down";
+      down.innerHTML = `<i class="fa-solid fa-arrow-down"></i>`;
+      down.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        moveEvent(ev.id, +1);
+      });
+
+      const del = document.createElement("button");
+      del.className = "miniIconBtn";
+      del.title = "Delete";
+      del.innerHTML = `<i class="fa-solid fa-trash"></i>`;
+      del.addEventListener("click", (e)=>{
+        e.stopPropagation();
+        deleteEvent(ev.id);
+      });
+
+      btns.appendChild(up);
+      btns.appendChild(down);
+      btns.appendChild(del);
+
+      wrap.appendChild(left);
+      wrap.appendChild(btns);
+
+      wrap.addEventListener("click", ()=> selectEvent(ev.id));
+      return wrap;
+    }
+
+    function highlightSelected(){
+      [...document.querySelectorAll(".miniItem")].forEach(el=>{
+        if(el.dataset.id === selectedId){
+          el.style.borderColor = "rgba(211,47,47,.65)";
+          el.style.boxShadow = "0 0 0 3px rgba(211,47,47,.12)";
+        } else {
+          el.style.borderColor = "#2f2f2f";
+          el.style.boxShadow = "none";
+        }
+      });
+    }
+
+    // ---------- CRUD ----------
+    function clearForm(){
+      dtIn.value = "";
+      sideIn.value = "left";
+      codeIn.value = "neutral";
+      customColorIn.value = "#d32f2f";
+      descIn.value = "";
+      selectedId = null;
+      highlightSelected();
+    }
+
+    function readForm(){
+      const dt = sanitize(dtIn.value);
+      const side = sanitize(sideIn.value) || "left";
+      const code = sanitize(codeIn.value) || "neutral";
+      const desc = sanitize(descIn.value);
+
+      const customColor = (code === "custom") ? (sanitize(customColorIn.value) || "#d32f2f") : "";
+      return { dt, side, code, customColor, desc };
+    }
+
+    function validate(ev){
+      if(!sanitize(ev.desc)){
+        alert("Add an event description.");
+        return false;
+      }
+      return true;
+    }
+
+    function addEvent(){
+      const ev = readForm();
+      if(!validate(ev)) return;
+
+      events.push({
+        id: uid(),
+        dt: ev.dt,
+        side: ev.side,
+        code: ev.code,
+        customColor: ev.customColor,
+        desc: ev.desc
+      });
+
+      renderTimeline();
+      clearForm();
+    }
+
+    function selectEvent(id){
+      const ev = events.find(x => x.id === id);
+      if(!ev) return;
+      selectedId = id;
+
+      dtIn.value = ev.dt || "";
+      sideIn.value = ev.side || "left";
+      codeIn.value = ev.code || "neutral";
+      customColorIn.value = ev.customColor || "#d32f2f";
+      descIn.value = ev.desc || "";
+
+      highlightSelected();
+    }
+
+    function updateEvent(){
+      if(!selectedId){
+        alert("Select an event from the list first.");
+        return;
+      }
+      const idx = events.findIndex(x => x.id === selectedId);
+      if(idx < 0) return;
+
+      const ev = readForm();
+      if(!validate(ev)) return;
+
+      events[idx] = {
+        ...events[idx],
+        dt: ev.dt,
+        side: ev.side,
+        code: ev.code,
+        customColor: ev.customColor,
+        desc: ev.desc
+      };
+
+      renderTimeline();
+    }
+
+    function deleteEvent(id){
+      const ev = events.find(x => x.id === id);
+      const ok = confirm(`Delete this event?\n\n${(ev?.desc || "").slice(0,120)}`);
+      if(!ok) return;
+
+      events = events.filter(x => x.id !== id);
+      if(selectedId === id) selectedId = null;
+
+      renderTimeline();
+      highlightSelected();
+    }
+
+    function moveEvent(id, dir){
+      const idx = events.findIndex(x => x.id === id);
+      if(idx < 0) return;
+      const nidx = idx + dir;
+      if(nidx < 0 || nidx >= events.length) return;
+      const tmp = events[idx];
+      events[idx] = events[nidx];
+      events[nidx] = tmp;
+      renderTimeline();
+    }
+
+    function sortByDate(){
+      // Keep no-date items where they are, but sort dated items among themselves.
+      const dated = events.filter(e => tryDate(e.dt));
+      const undated = events.filter(e => !tryDate(e.dt));
+
+      dated.sort((a,b)=> tryDate(a.dt) - tryDate(b.dt));
+
+      // Merge: place undated items first, then dated (clean + predictable)
+      events = [...undated, ...dated];
+      renderTimeline();
+    }
+
+    function demoFill(){
+      // A tight, story-ready starter set
+      events = [
+        { id: uid(), dt:"2025-11-03T19:12", side:"right", code:"neutral", customColor:"", desc:"Victim leaves apartment complex. CCTV shows no distress." },
+        { id: uid(), dt:"2025-11-03T19:26", side:"left", code:"white", customColor:"", desc:"Suspect clocks into diner shift (timecard verified)." },
+        { id: uid(), dt:"2025-11-03T21:04", side:"right", code:"neutral", customColor:"", desc:"Victim texts: “Running late. Don’t wait up.”" },
+        { id: uid(), dt:"2025-11-03T21:37", side:"left", code:"neutral", customColor:"", desc:"Suspect’s phone pings near 7th & Alder (tower ID inconsistent with alibi)." },
+        { id: uid(), dt:"2025-11-03T22:11", side:"center", code:"red", customColor:"", desc:"INCIDENT: Estimated time of assault based on heart-rate spike + access log." },
+        { id: uid(), dt:"2025-11-03T22:49", side:"left", code:"custom", customColor:"#ff4d4d", desc:"Red Thread: Burner call placed to unknown number (32 sec) immediately after." },
+        { id: uid(), dt:"2025-11-03T23:20", side:"right", code:"white", customColor:"", desc:"Witness reports hearing “two loud bangs” (statement consistent with timeline)." }
+      ];
+      selectedId = null;
+      renderTimeline();
+      clearForm();
+    }
+
+    // ---------- Custom color helpers ----------
+    function hexToRgba(hex, a){
+      const h = (hex || "#d32f2f").replace("#","").trim();
+      if(h.length !== 6) return `rgba(211,47,47,${a})`;
+      const r = parseInt(h.slice(0,2), 16);
+      const g = parseInt(h.slice(2,4), 16);
+      const b = parseInt(h.slice(4,6), 16);
+      return `rgba(${r},${g},${b},${a})`;
+    }
+
+    // ---------- JSON save/load ----------
+    function getState(){
+      return {
+        header:{
+          caseTitle: caseTitleIn.value,
+          caseSub: caseSubIn.value,
+          leftLabel: leftLabelIn.value,
+          rightLabel: rightLabelIn.value,
+          centerLabel: centerLabelIn.value
+        },
+        events
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+
+      const h = s.header || {};
+      caseTitleIn.value = h.caseTitle ?? caseTitleIn.value;
+      caseSubIn.value = h.caseSub ?? caseSubIn.value;
+      leftLabelIn.value = h.leftLabel ?? leftLabelIn.value;
+      rightLabelIn.value = h.rightLabel ?? rightLabelIn.value;
+      centerLabelIn.value = h.centerLabel ?? centerLabelIn.value;
+
+      if(Array.isArray(s.events)){
+        events = s.events.map(e => ({
+          id: e.id || uid(),
+          dt: (e.dt ?? "").toString(),
+          side: (e.side ?? "left").toString(),
+          code: (e.code ?? "neutral").toString(),
+          customColor: (e.customColor ?? "").toString(),
+          desc: (e.desc ?? "").toString()
+        }));
+      }
+
+      selectedId = null;
+      buildHeader();
+      renderTimeline();
+      clearForm();
+    }
+
+    // ---------- Export ----------
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      // ensure header is latest
+      buildHeader();
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `event_timeline_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    // ---------- Wire events ----------
+    [caseTitleIn, caseSubIn, leftLabelIn, rightLabelIn, centerLabelIn].forEach(el=>{
+      el.addEventListener("input", ()=>{ buildHeader(); renderTimeline(); });
+      el.addEventListener("change", ()=>{ buildHeader(); renderTimeline(); });
+    });
+
+    codeIn.addEventListener("change", ()=>{
+      // quick UX: if not custom, keep color input but it won't apply
+      if(codeIn.value !== "custom"){
+        // no action needed
+      }
+    });
+
+    addBtn.addEventListener("click", addEvent);
+    updateBtn.addEventListener("click", updateEvent);
+    clearBtn.addEventListener("click", clearForm);
+    demoBtn.addEventListener("click", demoFill);
+
+    sortBtn.addEventListener("click", sortByDate);
+    wipeBtn.addEventListener("click", ()=>{
+      const ok = confirm("Wipe ALL events?");
+      if(!ok) return;
+      events = [];
+      selectedId = null;
+      renderTimeline();
+      clearForm();
+    });
+
+    exportJsonBtn.addEventListener("click", async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener("click", ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        setState(JSON.parse(raw));
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    downloadBtn.addEventListener("click", exportEvidence);
+
+    // ---------- Init ----------
+    buildHeader();
+    renderTimeline();
+
+    // preload datetime with "now" for convenience (local)
+    (function(){
+      const d = new Date();
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,"0");
+      const dd = String(d.getDate()).padStart(2,"0");
+      const hh = String(d.getHours()).padStart(2,"0");
+      const mi = String(d.getMinutes()).padStart(2,"0");
+      dtIn.value = `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+      descIn.value = "Suspect seen leaving alley behind the diner.";
+      sideIn.value = "left";
+      codeIn.value = "neutral";
+    })();
+  </script>
+</body>
+</html>

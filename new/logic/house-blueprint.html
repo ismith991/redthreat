@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Red Thread Games — Evidence Engine | House Blueprint</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      /* Global Noir */
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Blueprint theme defaults */
+      --bpBg:#003366;                 /* classic blueprint blue */
+      --bpInk:rgba(255,255,255,.95);  /* white lines/text */
+      --bpInkSoft:rgba(255,255,255,.55);
+      --bpGrid:rgba(255,255,255,.12);
+      --bpGridBold:rgba(255,255,255,.20);
+
+      /* Alternative “white draft” */
+      --draftBg:#fbfbfb;
+      --draftInk:rgba(0,40,90,.92);
+      --draftInkSoft:rgba(0,40,90,.55);
+      --draftGrid:rgba(0,40,90,.10);
+      --draftGridBold:rgba(0,40,90,.16);
+
+      /* Layout sizes */
+      --pageW:1123px; /* A4 landscape-ish at 96dpi */
+      --pageH:794px;
+
+      --sans:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      --mono:"Courier Prime", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      overflow:hidden;
+    }
+
+    /* Split layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* Left: Control Center */
+    .control{
+      width:30%;
+      min-width:340px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .cc-title{
+      margin:0;
+      font-family:var(--mono);
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      font-size:13px;
+      line-height:1.4;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-badge{
+      border:1px solid rgba(211,47,47,.65);
+      color:var(--red);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:10px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+      margin-top:2px;
+      background:rgba(211,47,47,.06);
+    }
+    .cc-badge .dot{
+      width:8px; height:8px; border-radius:50%;
+      background:var(--red);
+      box-shadow:0 0 12px rgba(211,47,47,.65);
+    }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:12px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:11px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:var(--sans);
+    }
+    .textarea{ min-height:92px; resize:vertical; font-family:var(--mono); }
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+    .divider{ height:1px; background:var(--line); margin:12px 0; opacity:.9; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.92), rgba(211,47,47,.76));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+      margin:10px 0 0 0;
+    }
+
+    /* Right: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    .page{
+      width:var(--pageW);
+      height:var(--pageH);
+      border-radius:16px;
+      box-shadow:0 18px 50px rgba(0,0,0,.65);
+      border:1px solid rgba(255,255,255,.06);
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* Blueprint canvas */
+    .blueprint{
+      width:100%;
+      height:100%;
+      position:relative;
+      font-family:var(--mono);
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      background: var(--bpBg);
+      color: var(--bpInk);
+    }
+
+    /* grid overlay */
+    .blueprint.grid:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        repeating-linear-gradient(0deg,  var(--bpGrid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, var(--bpGrid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(0deg,  var(--bpGridBold) 0 1px, transparent 1px 120px),
+        repeating-linear-gradient(90deg, var(--bpGridBold) 0 1px, transparent 1px 120px);
+      opacity:.85;
+      pointer-events:none;
+    }
+
+    /* White draft theme */
+    .blueprint.draft{
+      background: var(--draftBg);
+      color: var(--draftInk);
+    }
+    .blueprint.draft.grid:before{
+      background:
+        repeating-linear-gradient(0deg,  var(--draftGrid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(90deg, var(--draftGrid) 0 1px, transparent 1px 24px),
+        repeating-linear-gradient(0deg,  var(--draftGridBold) 0 1px, transparent 1px 120px),
+        repeating-linear-gradient(90deg, var(--draftGridBold) 0 1px, transparent 1px 120px);
+    }
+
+    /* Title block */
+    .titleBlock{
+      position:absolute;
+      right:18px;
+      bottom:18px;
+      width:360px;
+      border:2px solid currentColor;
+      border-radius:10px;
+      padding:12px 12px 10px;
+      background:rgba(0,0,0,.10);
+      backdrop-filter: blur(2px);
+    }
+    .blueprint.draft .titleBlock{ background:rgba(0,0,0,.03); }
+
+    .titleBlock .hdr{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+      font-weight:700;
+      font-size:12px;
+    }
+    .chip{
+      border:1px solid rgba(255,255,255,.35);
+      padding:6px 8px;
+      border-radius:999px;
+      font-size:10px;
+      letter-spacing:.14em;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      opacity:.95;
+      white-space:nowrap;
+    }
+    .blueprint.draft .chip{ border-color: rgba(0,40,90,.35); }
+
+    .chip .dot{
+      width:7px; height:7px; border-radius:50%;
+      background:var(--red);
+      box-shadow:0 0 12px rgba(211,47,47,.55);
+    }
+
+    .titleGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:8px 10px;
+      font-size:10px;
+      letter-spacing:.12em;
+      opacity:.95;
+    }
+    .titleGrid b{ display:block; opacity:.75; font-weight:700; }
+    .titleGrid span{ display:block; margin-top:4px; letter-spacing:.10em; }
+
+    /* Main plan frame */
+    .planArea{
+      position:absolute;
+      left:22px;
+      top:22px;
+      right:22px;
+      bottom:22px;
+      display:grid;
+      grid-template-columns: 1fr;
+      grid-template-rows: auto 1fr auto;
+      gap:14px;
+      z-index:2;
+    }
+
+    .topBar{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      padding:12px 14px;
+      border:2px solid currentColor;
+      border-radius:12px;
+      background:rgba(0,0,0,.08);
+    }
+    .blueprint.draft .topBar{ background:rgba(0,0,0,.02); }
+
+    .topBar .left h1{
+      margin:0;
+      font-size:14px;
+      letter-spacing:.20em;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .topBar .left h1 i{ color:var(--red); }
+    .topBar .left .sub{
+      margin-top:6px;
+      font-size:10px;
+      letter-spacing:.16em;
+      opacity:.80;
+    }
+
+    .scaleBar{
+      display:flex;
+      flex-direction:column;
+      align-items:flex-end;
+      gap:6px;
+      font-size:10px;
+      letter-spacing:.16em;
+      opacity:.9;
+      white-space:nowrap;
+    }
+    .scaleLine{
+      width:180px;
+      height:10px;
+      border:2px solid currentColor;
+      border-radius:6px;
+      position:relative;
+      overflow:hidden;
+    }
+    .scaleLine:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(90deg,
+          transparent 0 25%,
+          currentColor 25% 26%,
+          transparent 26% 50%,
+          currentColor 50% 51%,
+          transparent 51% 75%,
+          currentColor 75% 76%,
+          transparent 76% 100%
+        );
+      opacity:.65;
+    }
+
+    /* House plan */
+    .house{
+      position:relative;
+      width:100%;
+      height:100%;
+      border:3px solid currentColor;
+      border-radius:14px;
+      background:rgba(0,0,0,.05);
+      overflow:hidden;
+    }
+    .blueprint.draft .house{ background:rgba(0,0,0,.01); }
+
+    /* Inner rooms grid */
+    .rooms{
+      position:absolute;
+      inset:16px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: 1fr 1fr;
+      gap:12px;
+    }
+
+    .room{
+      position:relative;
+      border:2px solid currentColor;
+      border-radius:12px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      text-align:center;
+      padding:12px;
+      overflow:hidden;
+      background:rgba(0,0,0,.03);
+    }
+    .blueprint.draft .room{ background:rgba(0,0,0,.00); }
+
+    .room .label{
+      margin:0;
+      font-size:13px;
+      letter-spacing:.18em;
+      opacity:.92;
+      color:inherit;
+    }
+
+    .room .subLabel{
+      position:absolute;
+      bottom:10px;
+      left:12px;
+      right:12px;
+      font-size:9px;
+      letter-spacing:.14em;
+      opacity:.70;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      pointer-events:none;
+    }
+
+    /* Door gap effect */
+    .door{
+      position:absolute;
+      width:46px;
+      height:10px;
+      background:transparent;
+      border-top:2px solid transparent;
+      border-left:2px solid transparent;
+      border-right:2px solid transparent;
+      border-bottom:2px solid transparent;
+      pointer-events:none;
+    }
+    .door.gap{
+      background: var(--bpBg);
+    }
+    .blueprint.draft .door.gap{
+      background: var(--draftBg);
+    }
+    /* create “opening” by painting over border */
+    .door.gap{
+      height:14px;
+    }
+
+    /* Markers */
+    .marker{
+      position:absolute;
+      width:46px;
+      height:46px;
+      border-radius:14px;
+      border:2px solid currentColor;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:24px;
+      font-weight:900;
+      letter-spacing:.05em;
+      box-shadow:0 12px 25px rgba(0,0,0,.35);
+      transform: translate(-50%, -50%);
+      left:50%;
+      top:50%;
+      background:rgba(0,0,0,.10);
+      backdrop-filter: blur(2px);
+    }
+    .blueprint.draft .marker{ background:rgba(0,0,0,.03); }
+
+    .marker.body{
+      color: var(--red);
+      border-color: rgba(211,47,47,.95);
+      background: rgba(211,47,47,.10);
+    }
+
+    .marker.weapon{
+      color: rgba(255,255,255,.95);
+      border-color: rgba(255,255,255,.85);
+    }
+    .blueprint.draft .marker.weapon{
+      color: rgba(0,40,90,.92);
+      border-color: rgba(0,40,90,.82);
+    }
+
+    .marker .mini{
+      position:absolute;
+      bottom:-18px;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:9px;
+      letter-spacing:.16em;
+      opacity:.92;
+      padding:4px 7px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.25);
+      background:rgba(0,0,0,.10);
+      color:inherit;
+      white-space:nowrap;
+    }
+    .blueprint.draft .marker .mini{
+      border-color: rgba(0,40,90,.22);
+      background:rgba(255,255,255,.55);
+    }
+    .marker.body .mini{
+      border-color: rgba(211,47,47,.45);
+      background: rgba(211,47,47,.10);
+    }
+
+    /* Extra evidence markers (optional) */
+    .eMarkers{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+    }
+    .eMarker{
+      position:absolute;
+      width:40px; height:40px;
+      border-radius:12px;
+      border:2px dashed currentColor;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      transform:translate(-50%,-50%);
+      background:rgba(0,0,0,.08);
+      font-size:18px;
+      font-weight:900;
+      pointer-events:none;
+      opacity:.98;
+    }
+    .eMarker .mini{
+      position:absolute;
+      bottom:-18px;
+      left:50%;
+      transform:translateX(-50%);
+      font-size:9px;
+      letter-spacing:.14em;
+      opacity:.88;
+      padding:4px 7px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.20);
+      background:rgba(0,0,0,.10);
+      color:inherit;
+      white-space:nowrap;
+    }
+    .blueprint.draft .eMarker{
+      background:rgba(0,0,0,.02);
+    }
+    .blueprint.draft .eMarker .mini{
+      border-color: rgba(0,40,90,.18);
+      background:rgba(255,255,255,.55);
+    }
+
+    /* Bottom legend */
+    .legend{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:12px;
+      padding:10px 12px;
+      border:2px solid currentColor;
+      border-radius:12px;
+      background:rgba(0,0,0,.08);
+      font-size:10px;
+      letter-spacing:.14em;
+      opacity:.95;
+      flex-wrap:wrap;
+    }
+    .blueprint.draft .legend{ background:rgba(0,0,0,.02); }
+
+    .legend .left{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      flex-wrap:wrap;
+    }
+    .legend .item{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+    }
+    .swatch{
+      width:18px; height:18px;
+      border-radius:7px;
+      border:2px solid currentColor;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+      font-size:12px;
+    }
+    .swatch.body{
+      color:var(--red);
+      border-color: rgba(211,47,47,.95);
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+
+    /* Responsive */
+    @media (max-width: 1100px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .page{ width:100%; height:auto; aspect-ratio: 1123 / 794; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT PANEL -->
+    <aside class="control">
+      <div class="cc-top">
+        <h2 class="cc-title"><i class="fa-solid fa-house-chimney"></i> House Blueprint</h2>
+        <div class="cc-badge"><span class="dot"></span> SECURE CONNECTION</div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="projectTitle">Project / Sheet Title</label>
+            <input id="projectTitle" class="input" type="text" value="RESIDENTIAL FLOOR PLAN" />
+          </div>
+          <div>
+            <label class="label" for="caseId">Case / Ref</label>
+            <input id="caseId" class="input" type="text" value="RT-LG-011" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="theme">Blueprint Theme</label>
+            <select id="theme" class="select">
+              <option value="blue" selected>Blueprint Blue (White Lines)</option>
+              <option value="draft">White Draft (Blue Lines)</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="gridToggle">Grid Overlay</label>
+            <select id="gridToggle" class="select">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <label class="label">Room Names (2×2 Layout)</label>
+        <div class="row">
+          <input id="r1" class="input" type="text" value="LIVING ROOM" />
+          <input id="r2" class="input" type="text" value="KITCHEN" />
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <input id="r3" class="input" type="text" value="BED 1" />
+          <input id="r4" class="input" type="text" value="BED 2" />
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="bodyRoom">Body Location (X)</label>
+            <select id="bodyRoom" class="select"></select>
+          </div>
+          <div>
+            <label class="label" for="weaponRoom">Weapon / Evidence (?)</label>
+            <select id="weaponRoom" class="select"></select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="bodyPos">Body Marker Position</label>
+            <select id="bodyPos" class="select">
+              <option value="center" selected>Center</option>
+              <option value="tl">Top-Left</option>
+              <option value="tr">Top-Right</option>
+              <option value="bl">Bottom-Left</option>
+              <option value="br">Bottom-Right</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="weaponPos">Evidence Marker Position</label>
+            <select id="weaponPos" class="select">
+              <option value="center">Center</option>
+              <option value="tl" selected>Top-Left</option>
+              <option value="tr">Top-Right</option>
+              <option value="bl">Bottom-Left</option>
+              <option value="br">Bottom-Right</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="bodyLabel">Body Label (Optional)</label>
+            <input id="bodyLabel" class="input" type="text" value="BODY" />
+          </div>
+          <div>
+            <label class="label" for="weaponLabel">Evidence Label (Optional)</label>
+            <input id="weaponLabel" class="input" type="text" value="WEAPON" />
+          </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <label class="label">Optional Extra Markers (Story Flexible)</label>
+        <div class="row">
+          <div>
+            <select id="extraType" class="select">
+              <option value="?">Evidence (?)</option>
+              <option value="!">Alert (!)</option>
+              <option value="•">Dot (•)</option>
+              <option value="X">X (X)</option>
+            </select>
+          </div>
+          <div>
+            <select id="extraRoom" class="select"></select>
+          </div>
+        </div>
+        <div style="height:10px"></div>
+        <div class="row">
+          <input id="extraLabel" class="input" type="text" placeholder="Label e.g. KNIFE / PHONE / BLOOD" />
+          <button id="addExtra" class="btnGhost"><i class="fa-solid fa-plus" style="margin-right:8px;"></i> Add</button>
+        </div>
+
+        <p class="tiny">This page is meant for reuse across different stories: swap labels, rooms, theme, markers, and export clean evidence.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg" selected>High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="clearExtras" class="btnGhost"><i class="fa-solid fa-broom" style="margin-right:8px;"></i> Clear Extras</button>
+          <button id="demoBtn" class="btnGhost"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i> Demo</button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT PANEL -->
+    <main class="preview-wrap">
+      <section class="page" id="captureArea" aria-label="House blueprint preview">
+        <div class="blueprint grid" id="bp">
+          <div class="planArea">
+
+            <div class="topBar">
+              <div class="left">
+                <h1><i class="fa-solid fa-ruler-combined"></i> <span id="titleOut">RESIDENTIAL FLOOR PLAN</span></h1>
+                <div class="sub" id="refOut">REFERENCE: RT-LG-011 // SCALE: 1/4" = 1'-0"</div>
+              </div>
+              <div class="scaleBar">
+                <div>MEASUREMENTS (APPROX.)</div>
+                <div class="scaleLine" aria-hidden="true"></div>
+              </div>
+            </div>
+
+            <div class="house" id="house">
+              <div class="rooms">
+                <div class="room" id="room1">
+                  <div class="door gap" style="top:-7px; left:50%; transform:translateX(-50%); width:54px;"></div>
+                  <div class="label" id="l1">LIVING ROOM</div>
+                  <div class="subLabel"><span id="d1a">12' × 14'</span><span id="d1b">N</span></div>
+                </div>
+                <div class="room" id="room2">
+                  <div class="door gap" style="right:-7px; top:50%; transform:translateY(-50%) rotate(90deg); width:54px;"></div>
+                  <div class="label" id="l2">KITCHEN</div>
+                  <div class="subLabel"><span id="d2a">10' × 12'</span><span id="d2b">E</span></div>
+                </div>
+                <div class="room" id="room3">
+                  <div class="door gap" style="left:-7px; top:50%; transform:translateY(-50%) rotate(90deg); width:54px;"></div>
+                  <div class="label" id="l3">BED 1</div>
+                  <div class="subLabel"><span id="d3a">11' × 11'</span><span id="d3b">W</span></div>
+                </div>
+                <div class="room" id="room4">
+                  <div class="door gap" style="bottom:-7px; left:50%; transform:translateX(-50%); width:54px;"></div>
+                  <div class="label" id="l4">BED 2</div>
+                  <div class="subLabel"><span id="d4a">11' × 10'</span><span id="d4b">S</span></div>
+                </div>
+              </div>
+
+              <!-- Fixed markers -->
+              <div class="marker body" id="bodyMarker" style="display:none;">
+                X
+                <div class="mini" id="bodyMini">BODY</div>
+              </div>
+
+              <div class="marker weapon" id="weaponMarker" style="display:none;">
+                ?
+                <div class="mini" id="weaponMini">WEAPON</div>
+              </div>
+
+              <!-- Optional extras -->
+              <div class="eMarkers" id="extrasLayer"></div>
+            </div>
+
+            <div class="legend">
+              <div class="left">
+                <div class="item">
+                  <span class="swatch body">X</span>
+                  <span>BODY LOCATION</span>
+                </div>
+                <div class="item">
+                  <span class="swatch">?</span>
+                  <span>EVIDENCE / WEAPON</span>
+                </div>
+                <div class="item">
+                  <i class="fa-solid fa-circle-info" style="color:var(--red);"></i>
+                  <span>ALL POSITIONS APPROX.</span>
+                </div>
+              </div>
+              <div class="right" style="opacity:.85;">
+                <span id="footerOut">RED THREAD // BLUEPRINT EXPORT v2.0</span>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="titleBlock" aria-hidden="true">
+            <div class="hdr">
+              <div style="display:flex;align-items:center;gap:10px;">
+                <i class="fa-solid fa-compass-drafting" style="color:var(--red);"></i>
+                <span>DOCUMENT CONTROL</span>
+              </div>
+              <div class="chip"><span class="dot"></span> SECURE</div>
+            </div>
+            <div class="titleGrid">
+              <div><b>CASE / REF</b><span id="tbCase">RT-LG-011</span></div>
+              <div><b>SHEET</b><span>FLOOR PLAN</span></div>
+              <div><b>REV</b><span>01</span></div>
+              <div><b>DATE</b><span id="tbDate">2025-12-30</span></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    // Inputs
+    const projectTitle = $("projectTitle");
+    const caseId = $("caseId");
+    const theme = $("theme");
+    const gridToggle = $("gridToggle");
+
+    const r1 = $("r1"), r2 = $("r2"), r3 = $("r3"), r4 = $("r4");
+
+    const bodyRoom = $("bodyRoom");
+    const weaponRoom = $("weaponRoom");
+    const bodyPos = $("bodyPos");
+    const weaponPos = $("weaponPos");
+    const bodyLabel = $("bodyLabel");
+    const weaponLabel = $("weaponLabel");
+
+    const extraType = $("extraType");
+    const extraRoom = $("extraRoom");
+    const extraLabel = $("extraLabel");
+    const addExtra = $("addExtra");
+    const clearExtras = $("clearExtras");
+    const demoBtn = $("demoBtn");
+
+    const exportType = $("exportType");
+    const exportScale = $("exportScale");
+    const downloadBtn = $("downloadBtn");
+
+    // Outputs / nodes
+    const bp = $("bp");
+    const titleOut = $("titleOut");
+    const refOut = $("refOut");
+    const footerOut = $("footerOut");
+    const tbCase = $("tbCase");
+    const tbDate = $("tbDate");
+
+    const l1 = $("l1"), l2 = $("l2"), l3 = $("l3"), l4 = $("l4");
+
+    const roomEls = {
+      "Room 1": $("room1"),
+      "Room 2": $("room2"),
+      "Room 3": $("room3"),
+      "Room 4": $("room4"),
+    };
+
+    const bodyMarker = $("bodyMarker");
+    const weaponMarker = $("weaponMarker");
+    const bodyMini = $("bodyMini");
+    const weaponMini = $("weaponMini");
+
+    const extrasLayer = $("extrasLayer");
+    const captureArea = $("captureArea");
+
+    // Extra markers state
+    let extras = []; // {id, type, roomKey, label, pos}
+
+    function todayISO(){
+      const d = new Date();
+      const pad = (n)=>String(n).padStart(2,"0");
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+    }
+
+    function roomOptions(){
+      const names = [
+        { key:"Room 1", name: r1.value || "ROOM 1" },
+        { key:"Room 2", name: r2.value || "ROOM 2" },
+        { key:"Room 3", name: r3.value || "ROOM 3" },
+        { key:"Room 4", name: r4.value || "ROOM 4" },
+        { key:"NONE",  name: "— None —" }
+      ];
+      return names;
+    }
+
+    function fillRoomDropdowns(){
+      const opts = roomOptions();
+      const make = (sel, current) => {
+        const keep = sel.value || current || "NONE";
+        sel.innerHTML = "";
+        opts.forEach(o=>{
+          const opt = document.createElement("option");
+          opt.value = o.key;
+          opt.textContent = o.name;
+          sel.appendChild(opt);
+        });
+        sel.value = opts.some(o=>o.key===keep) ? keep : "NONE";
+      };
+
+      make(bodyRoom, bodyRoom.value);
+      make(weaponRoom, weaponRoom.value);
+      make(extraRoom, extraRoom.value);
+
+      // Keep body/weapon not both “NONE” by default when first load
+      if(!bodyRoom.value) bodyRoom.value = "Room 1";
+      if(!weaponRoom.value) weaponRoom.value = "Room 2";
+      if(!extraRoom.value) extraRoom.value = "Room 3";
+    }
+
+    function setTheme(){
+      const isDraft = theme.value === "draft";
+      bp.classList.toggle("draft", isDraft);
+
+      const gridOn = gridToggle.value === "on";
+      bp.classList.toggle("grid", gridOn);
+    }
+
+    function posToXY(pos){
+      // returns {x,y} in percent inside the room
+      switch(pos){
+        case "tl": return {x:18, y:22};
+        case "tr": return {x:82, y:22};
+        case "bl": return {x:18, y:78};
+        case "br": return {x:82, y:78};
+        default:   return {x:50, y:50};
+      }
+    }
+
+    function placeMarker(markerEl, miniEl, roomKey, pos, label){
+      if(roomKey === "NONE"){
+        markerEl.style.display = "none";
+        return;
+      }
+      const room = roomEls[roomKey];
+      if(!room){
+        markerEl.style.display = "none";
+        return;
+      }
+
+      const {x,y} = posToXY(pos);
+
+      // Position relative to .house, not room, so compute offsets
+      const house = $("house");
+      const houseRect = house.getBoundingClientRect();
+      const roomRect = room.getBoundingClientRect();
+
+      const px = (roomRect.left - houseRect.left) + (roomRect.width * (x/100));
+      const py = (roomRect.top  - houseRect.top)  + (roomRect.height * (y/100));
+
+      markerEl.style.left = px + "px";
+      markerEl.style.top  = py + "px";
+      miniEl.textContent = (label || "").trim() || "";
+      miniEl.style.display = miniEl.textContent ? "block" : "none";
+
+      markerEl.style.display = "flex";
+    }
+
+    function renderExtras(){
+      extrasLayer.innerHTML = "";
+      const house = $("house");
+      const houseRect = house.getBoundingClientRect();
+
+      extras.forEach((m)=>{
+        if(m.roomKey === "NONE") return;
+        const room = roomEls[m.roomKey];
+        if(!room) return;
+
+        const {x,y} = posToXY(m.pos || "center");
+        const roomRect = room.getBoundingClientRect();
+
+        const px = (roomRect.left - houseRect.left) + (roomRect.width * (x/100));
+        const py = (roomRect.top  - houseRect.top)  + (roomRect.height * (y/100));
+
+        const el = document.createElement("div");
+        el.className = "eMarker";
+        el.style.left = px + "px";
+        el.style.top  = py + "px";
+        el.textContent = m.type || "?";
+
+        const mini = document.createElement("div");
+        mini.className = "mini";
+        mini.textContent = (m.label || "").trim() || "MARKER";
+        el.appendChild(mini);
+
+        extrasLayer.appendChild(el);
+      });
+    }
+
+    function updateRooms(){
+      l1.textContent = (r1.value || "ROOM 1").toUpperCase();
+      l2.textContent = (r2.value || "ROOM 2").toUpperCase();
+      l3.textContent = (r3.value || "ROOM 3").toUpperCase();
+      l4.textContent = (r4.value || "ROOM 4").toUpperCase();
+    }
+
+    function updateMeta(){
+      titleOut.textContent = (projectTitle.value || "RESIDENTIAL FLOOR PLAN").toUpperCase();
+      const ref = (caseId.value || "—").toUpperCase();
+      refOut.textContent = `REFERENCE: ${ref} // SCALE: 1/4" = 1'-0"`;
+      footerOut.textContent = `RED THREAD // BLUEPRINT EXPORT v2.0 // ${ref}`;
+      tbCase.textContent = ref;
+      tbDate.textContent = todayISO();
+    }
+
+    function updateAll(){
+      fillRoomDropdowns();
+      setTheme();
+      updateRooms();
+      updateMeta();
+
+      // Place body & weapon
+      placeMarker(bodyMarker, bodyMini, bodyRoom.value, bodyPos.value, bodyLabel.value);
+      placeMarker(weaponMarker, weaponMini, weaponRoom.value, weaponPos.value, weaponLabel.value);
+
+      // Re-render extras after layout changes
+      requestAnimationFrame(renderExtras);
+    }
+
+    // Add extra marker
+    addExtra.addEventListener("click", ()=>{
+      if(extras.length >= 8){
+        alert("Max 8 extra markers (keep it readable).");
+        return;
+      }
+      extras.push({
+        id: crypto?.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random(),
+        type: extraType.value || "?",
+        roomKey: extraRoom.value || "Room 1",
+        label: (extraLabel.value || "").trim(),
+        pos: ["center","tl","tr","bl","br"][Math.floor(Math.random()*5)] // small randomness looks “found”
+      });
+      extraLabel.value = "";
+      updateAll();
+    });
+
+    clearExtras.addEventListener("click", ()=>{
+      extras = [];
+      updateAll();
+    });
+
+    demoBtn.addEventListener("click", ()=>{
+      projectTitle.value = "RESIDENTIAL FLOOR PLAN";
+      caseId.value = "RT-LG-011";
+      theme.value = "blue";
+      gridToggle.value = "on";
+
+      r1.value = "LIVING ROOM";
+      r2.value = "KITCHEN";
+      r3.value = "BED 1";
+      r4.value = "BED 2";
+
+      bodyRoom.value = "Room 4";
+      weaponRoom.value = "Room 2";
+      bodyPos.value = "center";
+      weaponPos.value = "tl";
+      bodyLabel.value = "BODY";
+      weaponLabel.value = "WEAPON";
+
+      extras = [
+        { id:"a", type:"?", roomKey:"Room 1", label:"PHONE", pos:"tr" },
+        { id:"b", type:"!", roomKey:"Room 3", label:"BLOOD",  pos:"bl" }
+      ];
+      updateAll();
+    });
+
+    // Export
+    function fileStamp(){
+      const d = new Date();
+      const pad = (n)=>String(n).padStart(2,"0");
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      updateAll();
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `house_blueprint_${fileStamp()}`;
+
+      if(type === "jpg"){
+        const url = canvas.toDataURL("image/jpeg", 0.95);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      // Landscape PDF fits better here
+      const pdf = new jsPDF({ orientation:"l", unit:"pt", format:"a4" });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 20;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin*2;
+      const maxH = pageH - margin*2;
+
+      const ratio = Math.min(maxW/imgW, maxH/imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener("click", exportEvidence);
+
+    // Bind changes
+    [
+      projectTitle, caseId, theme, gridToggle,
+      r1, r2, r3, r4,
+      bodyRoom, weaponRoom, bodyPos, weaponPos, bodyLabel, weaponLabel,
+      extraType, extraRoom
+    ].forEach(el=>{
+      el.addEventListener("input", updateAll);
+      el.addEventListener("change", updateAll);
+    });
+
+    // Initial room dropdown setup
+    function initDropdowns(){
+      // temporary options to avoid empty selects before first updateAll
+      const base = ["Room 1","Room 2","Room 3","Room 4","NONE"];
+      [bodyRoom, weaponRoom, extraRoom].forEach(sel=>{
+        sel.innerHTML = "";
+        base.forEach(k=>{
+          const opt = document.createElement("option");
+          opt.value = k;
+          opt.textContent = k;
+          sel.appendChild(opt);
+        });
+      });
+      bodyRoom.value = "Room 1";
+      weaponRoom.value = "Room 2";
+      extraRoom.value = "Room 3";
+    }
+
+    initDropdowns();
+    updateAll();
+    window.addEventListener("resize", ()=>requestAnimationFrame(updateAll));
+  </script>
+</body>
+</html>

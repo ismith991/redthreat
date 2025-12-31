@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Toxicology Panel</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&family=Caveat:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Clinical sheet */
+      --paper:#ffffff;
+      --ink:#111111;
+      --sub:#5e5e5e;
+      --rule:#e9e9e9;
+      --soft:#f6f7f9;
+      --hi:#c62828;
+      --ok:#2e7d32;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* Lab sheet */
+    .sheet{
+      width: 900px;
+      min-height: 1120px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    .pad{ padding:28px 34px 28px 34px; }
+
+    .top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+      border-bottom:1px solid var(--rule);
+      padding-bottom:14px;
+      margin-bottom:16px;
+    }
+
+    .labname{
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+      margin:0;
+    }
+    .labsub{
+      margin:6px 0 0 0;
+      font-size:12px;
+      color:var(--sub);
+    }
+
+    /* CSS barcode */
+    .barcode{
+      width:220px;
+      height:56px;
+      border:1px solid #cfcfcf;
+      border-radius:8px;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          #111 0px,
+          #111 2px,
+          transparent 2px,
+          transparent 5px,
+          #111 5px,
+          #111 6px,
+          transparent 6px,
+          transparent 9px
+        );
+      position:relative;
+      overflow:hidden;
+    }
+    .barcode::after{
+      content:"SAMPLE-ID";
+      position:absolute;
+      bottom:4px;
+      left:8px;
+      font-family:"Courier Prime", monospace;
+      font-size:10px;
+      color:#111;
+      background:rgba(255,255,255,.85);
+      padding:2px 6px;
+      border-radius:6px;
+      border:1px solid rgba(0,0,0,.12);
+      letter-spacing:.06em;
+    }
+
+    .meta{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .meta .box{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      padding:12px;
+      background:var(--soft);
+    }
+    .meta .k{
+      color:var(--sub);
+      font-size:11px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-bottom:6px;
+    }
+    .meta .v{
+      font-weight:800;
+      font-size:14px;
+      color:#111;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .table-wrap{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      overflow:hidden;
+      background:#fff;
+    }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:13px;
+    }
+    thead th{
+      text-align:left;
+      background:var(--soft);
+      border-bottom:1px solid #e1e1e1;
+      padding:10px 12px;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      color:#333;
+    }
+    tbody td{
+      padding:10px 12px;
+      border-bottom:1px solid #efefef;
+      vertical-align:top;
+    }
+    tbody tr:last-child td{ border-bottom:none; }
+
+    .mono{ font-family:"Courier Prime", monospace; }
+
+    .flag{
+      font-weight:900;
+      letter-spacing:.08em;
+      font-size:11px;
+      text-transform:uppercase;
+      border-radius:999px;
+      padding:4px 8px;
+      display:inline-block;
+      border:1px solid rgba(0,0,0,.15);
+      background:#fff;
+    }
+    .flag.high{
+      color:var(--hi);
+      border-color: rgba(198,40,40,.35);
+      background: rgba(198,40,40,.06);
+    }
+    .flag.normal{
+      color:var(--ok);
+      border-color: rgba(46,125,50,.35);
+      background: rgba(46,125,50,.06);
+    }
+
+    .result.high{
+      color:var(--hi);
+      font-weight:900;
+    }
+
+    .foot{
+      margin-top:18px;
+      border-top:1px solid var(--rule);
+      padding-top:14px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-end;
+    }
+    .verify{
+      font-size:12px;
+      color:#333;
+    }
+    .sig{
+      font-family:"Caveat", cursive;
+      font-size:28px;
+      color:#111;
+      line-height:1;
+    }
+
+    @media (max-width: 1160px){
+      .sheet{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .meta{ grid-template-columns:1fr; }
+      .top{ flex-direction:column; align-items:flex-start; }
+      .barcode{ width:100%; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .pad{ padding:18px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-vial"></i> Medical — Toxicology Panel</h2>
+
+      <div class="cc-card">
+        <label class="label" for="patient">Patient Name</label>
+        <input id="patient" class="input" type="text" value="DOE, JOHN" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="sampleId">Sample ID</label>
+        <input id="sampleId" class="input" type="text" value="TX-55319-RT" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="verifier">Verified by (Dr. Name)</label>
+        <input id="verifier" class="input" type="text" value="M. Rivera" />
+
+        <p class="tiny">Add substances below. Flags auto-calculate if Result &gt; Range threshold.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="analyte">Analyte</label>
+            <input id="analyte" class="input" type="text" value="Ethanol" />
+          </div>
+          <div>
+            <label class="label" for="result">Result</label>
+            <input id="result" class="input" type="text" value="0.08 %" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="range">Reference Range</label>
+            <input id="range" class="input" type="text" value="< 0.01 %" />
+          </div>
+          <div>
+            <label class="label" for="unitsHint">Units (optional)</label>
+            <input id="unitsHint" class="input" type="text" value="%" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addRowBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Substance</button>
+          <button id="clearBtn" class="ghost"><i class="fa-solid fa-trash" style="margin-right:8px"></i>Clear Table</button>
+        </div>
+
+        <p class="tiny">
+          Range parser supports: “&lt; 0.01”, “&le; 0.01”, “0.00 - 0.03”, “0.01–0.05”, “&gt; 10”.
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="input">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="input">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="sheet" aria-label="Forensic Toxicology Laboratory Result Sheet">
+        <div class="pad">
+          <div class="top">
+            <div>
+              <h1 class="labname">FORENSIC TOXICOLOGY LABORATORY</h1>
+              <div class="labsub">Result Sheet — Clinical / Forensic Use Only</div>
+            </div>
+
+            <div class="barcode" aria-label="Barcode"></div>
+          </div>
+
+          <div class="meta">
+            <div class="box">
+              <div class="k">Patient Name</div>
+              <div id="patientOut" class="v">DOE, JOHN</div>
+            </div>
+            <div class="box">
+              <div class="k">Sample ID</div>
+              <div id="sampleOut" class="v mono">TX-55319-RT</div>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Analyte</th>
+                  <th>Result</th>
+                  <th>Reference Range</th>
+                  <th>Flag</th>
+                </tr>
+              </thead>
+              <tbody id="tbody">
+                <!-- seeded rows -->
+              </tbody>
+            </table>
+          </div>
+
+          <div class="foot">
+            <div class="verify">
+              <div><b>Verified by:</b> Dr. <span id="verifyOut">M. Rivera</span></div>
+              <div style="color:var(--sub); font-size:11px; margin-top:4px;">This report is generated for case documentation.</div>
+            </div>
+            <div class="sig" id="sigOut">M. Rivera</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ===== Inputs =====
+    const patient = document.getElementById('patient');
+    const sampleId = document.getElementById('sampleId');
+    const verifier = document.getElementById('verifier');
+
+    const analyte = document.getElementById('analyte');
+    const result = document.getElementById('result');
+    const range = document.getElementById('range');
+
+    const addRowBtn = document.getElementById('addRowBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    // ===== Outputs =====
+    const patientOut = document.getElementById('patientOut');
+    const sampleOut = document.getElementById('sampleOut');
+    const verifyOut = document.getElementById('verifyOut');
+    const sigOut = document.getElementById('sigOut');
+
+    const tbody = document.getElementById('tbody');
+
+    function sanitize(s){ return (s ?? "").toString().trim(); }
+
+    function applyHeader(){
+      patientOut.textContent = sanitize(patient.value) || "—";
+      sampleOut.textContent = sanitize(sampleId.value) || "—";
+      const v = sanitize(verifier.value) || "—";
+      verifyOut.textContent = v;
+      sigOut.textContent = v;
+      // Also update the barcode label text
+      const bc = document.querySelector('.barcode');
+      bc.style.setProperty('--sample', `"${v}"`);
+      bc.setAttribute('aria-label', `Barcode for sample ${sanitize(sampleId.value) || ''}`);
+      bc.style.setProperty('--dummy', '1'); // no-op; keeps deterministic
+      // update barcode caption (pseudo-element content isn't dynamic in CSS without vars,
+      // so we will just set a data attribute and swap in JS below)
+      bc.dataset.sample = sanitize(sampleId.value) || "SAMPLE-ID";
+    }
+
+    // Update barcode caption with a tiny overlay div (keeps CSS barcode bars)
+    (function initBarcodeCaption(){
+      const bc = document.querySelector('.barcode');
+      const cap = document.createElement('div');
+      cap.style.position = 'absolute';
+      cap.style.bottom = '4px';
+      cap.style.left = '8px';
+      cap.style.fontFamily = '"Courier Prime", monospace';
+      cap.style.fontSize = '10px';
+      cap.style.color = '#111';
+      cap.style.background = 'rgba(255,255,255,.85)';
+      cap.style.padding = '2px 6px';
+      cap.style.borderRadius = '6px';
+      cap.style.border = '1px solid rgba(0,0,0,.12)';
+      cap.style.letterSpacing = '.06em';
+      cap.id = 'barcodeCaption';
+      bc.appendChild(cap);
+    })();
+
+    function updateBarcodeCaption(){
+      const cap = document.getElementById('barcodeCaption');
+      cap.textContent = sanitize(sampleId.value) || 'SAMPLE-ID';
+    }
+
+    function parseNumberFromText(text){
+      // Extract first number (supports decimals)
+      const m = String(text).match(/-?\d+(\.\d+)?/);
+      return m ? Number(m[0]) : NaN;
+    }
+
+    function parseReferenceRange(text){
+      // Supports:
+      // "< 0.01", "<= 0.01", "> 10"
+      // "0.00 - 0.03", "0.01–0.05"
+      const t = sanitize(text).replaceAll('≤', '<=').replaceAll('≥', '>=').replaceAll('–','-').replaceAll('—','-');
+      if(!t) return { type:'unknown' };
+
+      // Comparator
+      const cmp = t.match(/^(<=|>=|<|>)\s*(-?\d+(\.\d+)?)/);
+      if(cmp){
+        return { type:'cmp', op: cmp[1], val: Number(cmp[2]) };
+      }
+
+      // Range a-b
+      const rng = t.match(/(-?\d+(\.\d+)?)\s*-\s*(-?\d+(\.\d+)?)/);
+      if(rng){
+        return { type:'range', lo: Number(rng[1]), hi: Number(rng[3]) };
+      }
+
+      // Fallback: single number
+      const n = parseNumberFromText(t);
+      if(!Number.isNaN(n)) return { type:'single', val:n };
+
+      return { type:'unknown' };
+    }
+
+    function isHigh(resultText, rangeText){
+      const r = parseNumberFromText(resultText);
+      const ref = parseReferenceRange(rangeText);
+
+      if(Number.isNaN(r)) return false; // can't compare
+
+      if(ref.type === 'cmp'){
+        // reference range usually means acceptable is "< x" or "<= x"
+        if(ref.op === '<')  return r >= ref.val;
+        if(ref.op === '<=') return r >  ref.val;
+        if(ref.op === '>')  return r <= ref.val; // uncommon, but treat below-threshold as "high" flag
+        if(ref.op === '>=') return r <  ref.val;
+      }
+
+      if(ref.type === 'range'){
+        return r < ref.lo || r > ref.hi; // outside range
+      }
+
+      if(ref.type === 'single'){
+        return r > ref.val; // assume upper bound
+      }
+
+      return false;
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function addRow(a, res, ref){
+      const A = sanitize(a);
+      const R = sanitize(res);
+      const Ref = sanitize(ref);
+
+      if(!A && !R && !Ref) return;
+
+      const high = isHigh(R, Ref);
+
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${escapeHtml(A || "—")}</td>
+        <td class="${high ? 'result high' : ''}">${escapeHtml(R || "—")}</td>
+        <td class="mono">${escapeHtml(Ref || "—")}</td>
+        <td>${high
+            ? `<span class="flag high">HIGH</span>`
+            : `<span class="flag normal">NORMAL</span>`}
+        </td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    function clearTable(){
+      tbody.innerHTML = "";
+    }
+
+    addRowBtn.addEventListener('click', ()=>{
+      addRow(analyte.value, result.value, range.value);
+    });
+
+    clearBtn.addEventListener('click', clearTable);
+
+    [patient, sampleId, verifier].forEach(el=>{
+      el.addEventListener('input', ()=>{
+        applyHeader();
+        updateBarcodeCaption();
+      });
+      el.addEventListener('change', ()=>{
+        applyHeader();
+        updateBarcodeCaption();
+      });
+    });
+
+    // Seed with a few sample rows
+    clearTable();
+    addRow("Ethanol", "0.08 %", "< 0.01 %");
+    addRow("Opiates", "NEG", "NEG");
+    addRow("Arsenic", "0.003 mg/L", "0.000 - 0.010 mg/L");
+
+    applyHeader();
+    updateBarcodeCaption();
+
+    // ===== Export =====
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `toxicology_panel_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

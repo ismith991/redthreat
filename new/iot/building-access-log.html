@@ -1,0 +1,817 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Building Access Log</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#0f1115;
+      --paper2:#0c0e12;
+      --hdr:#121726;
+
+      --ok:#3ddc84;
+      --bad:#ff5252;
+      --accent:#3b82f6;
+
+      --rowSel: rgba(59,130,246,.18);
+      --rowSelBorder: rgba(59,130,246,.45);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:80px; resize:vertical; }
+
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .btnRow{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:10px;
+    }
+    .btnRow:hover{ border-color:rgba(255,255,255,.25); }
+    .btnDanger{
+      border-color:rgba(211,47,47,.6);
+    }
+    .btnDanger:hover{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.14);
+    }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* Audit Log Panel */
+    .audit{
+      width: 1100px;
+      margin:0 auto;
+      background:linear-gradient(180deg, var(--paper), var(--paper2));
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      color:#e9edf5;
+    }
+
+    .auditHead{
+      padding:16px 18px;
+      background: linear-gradient(180deg, rgba(18,23,38,.95), rgba(12,14,18,.95));
+      border-bottom:1px solid rgba(255,255,255,.08);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+    .auditTitle{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:13px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-family:"Courier Prime", monospace;
+    }
+    .auditTitle i{ color:var(--accent); }
+    .auditMeta{
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      color:rgba(233,237,245,.75);
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      white-space:nowrap;
+    }
+    .pill{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.03);
+      padding:6px 10px;
+      border-radius:999px;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+
+    .tableWrap{ padding:12px 12px 16px 12px; }
+
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      font-size:12px; /* requirement */
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      background:rgba(255,255,255,.02);
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:12px;
+      overflow:hidden;
+    }
+
+    thead th{
+      background: rgba(18,23,38,.92);
+      color:#e9edf5;
+      text-align:left;
+      padding:10px 10px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:11px;
+      border-bottom:1px solid rgba(255,255,255,.08);
+      position:sticky;
+      top:0;
+      z-index:2;
+    }
+
+    tbody td{
+      padding:9px 10px;
+      border-bottom:1px solid rgba(255,255,255,.06);
+      color:#e9edf5;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width: 240px;
+    }
+
+    tbody tr:nth-child(odd){ background: rgba(255,255,255,.02); }
+    tbody tr:nth-child(even){ background: rgba(255,255,255,.01); }
+
+    tbody tr{
+      cursor:pointer;
+      user-select:none;
+    }
+    tbody tr:hover{
+      outline:1px solid rgba(255,255,255,.10);
+      outline-offset:-1px;
+      background: rgba(255,255,255,.03);
+    }
+    tbody tr.selected{
+      background: var(--rowSel) !important;
+      outline: 1px solid var(--rowSelBorder);
+      outline-offset:-1px;
+    }
+
+    .mono{ font-family:"Courier Prime", monospace; letter-spacing:.03em; }
+    .ok{ color: var(--ok); font-weight:800; }
+    .bad{ color: var(--bad); font-weight:800; }
+
+    .footer{
+      padding:12px 18px;
+      border-top:1px solid rgba(255,255,255,.08);
+      background: rgba(0,0,0,.22);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(233,237,245,.65);
+    }
+
+    .statusLine{
+      margin-top:10px;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.06em;
+      color:rgba(233,237,245,.65);
+    }
+
+    .hide{ display:none !important; }
+
+    @media (max-width: 1200px){
+      .audit{ width:100%; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-door-closed"></i> Surveillance — Building Access Log</h2>
+
+      <div class="cc-card">
+        <label class="label" for="building">Building Name</label>
+        <input id="building" class="input" type="text" value="RIVERFRONT PLAZA" />
+        <p class="tiny">Tip: click a row in the preview to select it. Then use <b>Remove Selected</b>.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="date">Date</label>
+            <input id="date" class="input" type="text" value="2025-07-15" />
+          </div>
+          <div>
+            <label class="label" for="time">Time (HH:MM:SS)</label>
+            <input id="time" class="input" type="text" value="21:04:12" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="door">Door</label>
+            <input id="door" class="input" type="text" value="Lobby Turnstile" />
+          </div>
+          <div>
+            <label class="label" for="reader">Reader / Location</label>
+            <input id="reader" class="input" type="text" value="LR-01 (Lobby Reader)" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="cardholder">Cardholder</label>
+            <input id="cardholder" class="input" type="text" value="SINGH, MARCO" />
+          </div>
+          <div>
+            <label class="label" for="cardId">Card ID (Hex)</label>
+            <input id="cardId" class="input" type="text" value="0xA19F3C7B" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="result">Result</label>
+        <select id="result" class="select">
+          <option value="granted" selected>Access Granted</option>
+          <option value="denied">Access Denied</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <div id="denyReasonWrap" class="hide">
+          <label class="label" for="denyReason">Denied Reason (optional)</label>
+          <select id="denyReason" class="select">
+            <option value="">—</option>
+            <option>Invalid PIN</option>
+            <option>Expired Card</option>
+            <option>Anti-passback</option>
+            <option>Time Zone Restriction</option>
+            <option>Door Schedule Lock</option>
+          </select>
+          <p class="tiny">Only shows on denied entries to keep it realistic.</p>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <button id="addBtn" class="btn">
+          <i class="fa-solid fa-plus" style="margin-right:8px;"></i>
+          Add Event
+        </button>
+
+        <div style="height:10px"></div>
+
+        <button id="bulkDemo" class="btnGhost">
+          <i class="fa-solid fa-bolt" style="margin-right:8px;"></i>
+          Add 8 Demo Events
+        </button>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="removeSelected" class="btnRow btnDanger">
+            <i class="fa-solid fa-trash"></i> Remove Selected
+          </button>
+          <button id="removeLatest" class="btnRow">
+            <i class="fa-solid fa-arrow-up"></i> Remove Latest
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="clearTable" class="btnRow btnDanger">
+          <i class="fa-solid fa-broom"></i> Clear Table
+        </button>
+
+        <div class="statusLine" id="selectedOut">Selected Row: None</div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="audit" aria-label="Access control event log">
+        <div class="auditHead">
+          <div class="auditTitle">
+            <i class="fa-solid fa-shield-halved"></i>
+            <span id="titleOut">ACCESS CONTROL EVENT LOG - RIVERFRONT PLAZA</span>
+          </div>
+          <div class="auditMeta">
+            <span class="pill"><i class="fa-solid fa-database" style="color:rgba(233,237,245,.75)"></i> AUDIT</span>
+            <span class="pill"><i class="fa-solid fa-lock" style="color:rgba(233,237,245,.75)"></i> SECURE</span>
+          </div>
+        </div>
+
+        <div class="tableWrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:110px;">Event ID</th>
+                <th style="width:190px;">Date/Time</th>
+                <th style="width:210px;">Door</th>
+                <th style="width:210px;">Reader / Location</th>
+                <th style="width:210px;">Cardholder</th>
+                <th style="width:150px;">Card ID</th>
+                <th style="width:140px;">Result</th>
+                <th style="width:220px;">Reason</th>
+              </tr>
+            </thead>
+            <tbody id="tbody">
+              <!-- rows inserted here -->
+            </tbody>
+          </table>
+        </div>
+
+        <div class="footer">
+          <div>RTG // Evidence Engine</div>
+          <div id="countOut">EVENTS: 0</div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const building = document.getElementById('building');
+    const dateIn = document.getElementById('date');
+    const timeIn = document.getElementById('time');
+    const doorIn = document.getElementById('door');
+    const readerIn = document.getElementById('reader');
+    const cardholderIn = document.getElementById('cardholder');
+    const cardIdIn = document.getElementById('cardId');
+    const resultIn = document.getElementById('result');
+    const denyReasonWrap = document.getElementById('denyReasonWrap');
+    const denyReasonIn = document.getElementById('denyReason');
+
+    const addBtn = document.getElementById('addBtn');
+    const bulkDemo = document.getElementById('bulkDemo');
+    const removeSelectedBtn = document.getElementById('removeSelected');
+    const removeLatestBtn = document.getElementById('removeLatest');
+    const clearTableBtn = document.getElementById('clearTable');
+
+    // Outputs
+    const titleOut = document.getElementById('titleOut');
+    const tbody = document.getElementById('tbody');
+    const countOut = document.getElementById('countOut');
+    const selectedOut = document.getElementById('selectedOut');
+
+    // Selection state
+    let selectedRow = null;
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function randEventId(){
+      return String(Math.floor(1000000 + Math.random() * 9000000));
+    }
+
+    function normalizeHex(s){
+      let v = sanitize(s);
+      if(!v) return "—";
+      v = v.toUpperCase();
+      if(!v.startsWith("0X")) v = "0x" + v.replace(/^0X/i,'');
+      return v;
+    }
+
+    function updateHeader(){
+      const b = sanitize(building.value) || "—";
+      titleOut.textContent = `ACCESS CONTROL EVENT LOG - ${b.toUpperCase()}`;
+    }
+
+    function updateCount(){
+      countOut.textContent = `EVENTS: ${tbody.children.length}`;
+    }
+
+    function setSelectedRow(tr){
+      // clear previous
+      if(selectedRow && selectedRow.isConnected){
+        selectedRow.classList.remove('selected');
+      }
+      selectedRow = tr || null;
+      if(selectedRow){
+        selectedRow.classList.add('selected');
+        const id = selectedRow.dataset.eventId || "—";
+        const dt = selectedRow.dataset.dateTime || "—";
+        selectedOut.textContent = `Selected Row: ${id} // ${dt}`;
+      }else{
+        selectedOut.textContent = "Selected Row: None";
+      }
+    }
+
+    function addRow({eventId, date, time, door, reader, cardholder, cardId, result, reason}){
+      const tr = document.createElement('tr');
+
+      const dt = (date && time) ? `${date} ${time}` : "—";
+
+      tr.dataset.eventId = eventId || randEventId();
+      tr.dataset.dateTime = dt;
+
+      tr.addEventListener('click', () => setSelectedRow(tr));
+
+      const tdId = document.createElement('td');
+      tdId.className = "mono";
+      tdId.textContent = tr.dataset.eventId;
+
+      const tdDT = document.createElement('td');
+      tdDT.className = "mono";
+      tdDT.textContent = dt;
+
+      const tdDoor = document.createElement('td');
+      tdDoor.textContent = door || "—";
+
+      const tdReader = document.createElement('td');
+      tdReader.textContent = reader || "—";
+
+      const tdName = document.createElement('td');
+      tdName.textContent = cardholder || "—";
+
+      const tdCard = document.createElement('td');
+      tdCard.className = "mono";
+      tdCard.textContent = cardId || "—";
+
+      const tdRes = document.createElement('td');
+      tdRes.className = result === "Access Denied" ? "bad" : "ok";
+      tdRes.textContent = result || "—";
+
+      const tdReason = document.createElement('td');
+      tdReason.textContent = reason || "—";
+
+      [tdId, tdDT, tdDoor, tdReader, tdName, tdCard, tdRes, tdReason].forEach(td => tr.appendChild(td));
+
+      // newest on top
+      tbody.insertBefore(tr, tbody.firstChild);
+      updateCount();
+
+      // auto-select latest added (feels like a real tool)
+      setSelectedRow(tr);
+    }
+
+    function showHideDenyReason(){
+      if(resultIn.value === "denied"){
+        denyReasonWrap.classList.remove('hide');
+      }else{
+        denyReasonWrap.classList.add('hide');
+        denyReasonIn.value = "";
+      }
+    }
+
+    resultIn.addEventListener('change', showHideDenyReason);
+
+    addBtn.addEventListener('click', () => {
+      const date = sanitize(dateIn.value) || "—";
+      const time = sanitize(timeIn.value) || "—";
+      const resultText = resultIn.value === "denied" ? "Access Denied" : "Access Granted";
+      const reason = (resultText === "Access Denied") ? (sanitize(denyReasonIn.value) || "—") : "—";
+
+      addRow({
+        eventId: randEventId(),
+        date,
+        time,
+        door: sanitize(doorIn.value) || "—",
+        reader: sanitize(readerIn.value) || "—",
+        cardholder: sanitize(cardholderIn.value) || "—",
+        cardId: normalizeHex(cardIdIn.value),
+        result: resultText,
+        reason
+      });
+    });
+
+    bulkDemo.addEventListener('click', () => {
+      // Neutral demo set: realistic building traffic; NOT screaming one suspect.
+      const doors = [
+        "Main Entrance","Lobby Turnstile","Elevator Control (3F)","Stairwell Door (3F)",
+        "Garage Gate","West Entrance","Loading Dock","IT Closet"
+      ];
+      const readers = [
+        "ME-01 (Front Reader)","LR-01 (Lobby Reader)","ELV-3F (Panel)","ST-3F (Stair Reader)",
+        "GAR-02 (Gate)","WE-01 (West Reader)","LD-01 (Dock Reader)","IT-01 (Inner Reader)"
+      ];
+      const names = [
+        "KHADKA, NAVEEN","GURUNG, S.","THAPA, S.","SHARMA, ARJUN",
+        "PARK, MINA","PATEL, RINA","ALVAREZ, LEO","UNKNOWN"
+      ];
+      const reasons = ["Invalid PIN","Expired Card","Anti-passback","Time Zone Restriction","Door Schedule Lock"];
+
+      // make times around the current date input, slightly staggered
+      const baseDate = sanitize(dateIn.value) || "2025-07-15";
+      const times = ["20:58:11","21:01:06","21:06:33","21:10:52","21:14:07","21:18:40","21:22:19","21:27:55"];
+
+      for(let i=0;i<8;i++){
+        const denied = (names[i] === "UNKNOWN") || (Math.random() < 0.18);
+        addRow({
+          eventId: randEventId(),
+          date: baseDate,
+          time: times[i],
+          door: doors[i],
+          reader: readers[i],
+          cardholder: names[i],
+          cardId: "0x" + Math.floor(Math.random()*0xFFFFFFF).toString(16).toUpperCase().padStart(7,'0'),
+          result: denied ? "Access Denied" : "Access Granted",
+          reason: denied ? reasons[Math.floor(Math.random()*reasons.length)] : "—"
+        });
+      }
+    });
+
+    removeSelectedBtn.addEventListener('click', () => {
+      if(!selectedRow || !selectedRow.isConnected) return;
+      const toRemove = selectedRow;
+      setSelectedRow(null);
+      toRemove.remove();
+      updateCount();
+    });
+
+    removeLatestBtn.addEventListener('click', () => {
+      const latest = tbody.firstElementChild;
+      if(!latest) return;
+      if(selectedRow === latest) setSelectedRow(null);
+      latest.remove();
+      updateCount();
+    });
+
+    clearTableBtn.addEventListener('click', () => {
+      tbody.innerHTML = "";
+      setSelectedRow(null);
+      updateCount();
+    });
+
+    building.addEventListener('input', updateHeader);
+    building.addEventListener('change', updateHeader);
+
+    // Init
+    updateHeader();
+    showHideDenyReason();
+
+    // Start with 2 believable rows (not pointing at one suspect)
+    addRow({
+      eventId: randEventId(),
+      date: "2025-07-15",
+      time: "20:49:02",
+      door: "Main Entrance",
+      reader: "ME-01 (Front Reader)",
+      cardholder: "KHADKA, NAVEEN",
+      cardId: "0x8F12AC4D",
+      result: "Access Granted",
+      reason: "—"
+    });
+
+    addRow({
+      eventId: randEventId(),
+      date: "2025-07-15",
+      time: "20:52:31",
+      door: "Server Room",
+      reader: "SR-01 (Restricted)",
+      cardholder: "UNKNOWN",
+      cardId: "0x0B7C19E2",
+      result: "Access Denied",
+      reason: "Invalid PIN"
+    });
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      // De-select highlight before capture for cleaner export
+      const prevSel = selectedRow;
+      setSelectedRow(null);
+
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      // restore selection after capture
+      if(prevSel && prevSel.isConnected) setSelectedRow(prevSel);
+
+      const base = `building_access_log_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

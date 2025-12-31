@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Fingerprint Card (FD-258 Style)</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&family=Playfair+Display:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* FD-258 vibe */
+      --paper:#ffffff;
+      --blue:#1b4fb8;          /* strong blue ink */
+      --blue2:#0e3e9c;
+      --ink:#0a0a0a;
+      --thin:#2b63cc;
+      --gridW:2px;             /* thick-ish lines */
+      --gridW2:3px;            /* thicker key lines */
+      --label:#0e3e9c;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen Layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Card canvas (A4-ish) */
+    .fd{
+      width: 900px;
+      background:var(--paper);
+      color:var(--ink);
+      border: var(--gridW2) solid var(--blue);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      padding:14px 14px 12px 14px;
+      font-family: "Courier Prime", monospace;
+    }
+
+    .fd-topbar{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:14px;
+      margin-bottom:10px;
+    }
+
+    .fd-title{
+      font-weight:700;
+      color:var(--blue);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:16px;
+      line-height:1.1;
+    }
+    .fd-sub{
+      font-size:11px;
+      color:var(--label);
+      letter-spacing:.02em;
+      margin-top:2px;
+    }
+
+    .fd-meta{
+      font-size:11px;
+      color:var(--label);
+      text-align:right;
+      line-height:1.35;
+      border: var(--gridW) solid var(--blue);
+      padding:8px 10px;
+      min-width:240px;
+    }
+    .fd-meta b{ color:var(--blue2); }
+
+    .section{
+      border: var(--gridW) solid var(--blue);
+      margin-bottom:10px;
+    }
+
+    /* Demographics grid */
+    .demo{
+      display:grid;
+      grid-template-columns: 1.8fr 1fr 1fr 1fr;
+      border-top:none;
+    }
+    .cell{
+      border-top: var(--gridW) solid var(--blue);
+      border-right: var(--gridW) solid var(--blue);
+      padding:7px 8px 6px 8px;
+      min-height:46px;
+    }
+    .cell:nth-child(-n+4){ border-top:none; } /* first row */
+    .cell:nth-child(4n){ border-right:none; } /* last col */
+
+    .cell .k{
+      font-size:10px;
+      color:var(--label);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:4px;
+    }
+    .cell .v{
+      font-size:12px;
+      color:#111;
+      font-weight:700;
+      letter-spacing:.01em;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* Fingerprint boxes grid */
+    .prints{
+      padding:10px 10px 12px 10px;
+    }
+
+    .prints-grid{
+      display:grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap:10px;
+    }
+
+    .print-box{
+      border: var(--gridW2) solid var(--blue);
+      padding:6px;
+      background:#fff;
+    }
+    .print-label{
+      font-size:10px;
+      color:var(--label);
+      letter-spacing:.06em;
+      margin-bottom:6px;
+      text-transform:uppercase;
+      min-height:22px;
+    }
+
+    .print-area{
+      height:88px;
+      border: var(--gridW) solid var(--blue);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:#fff;
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* CSS fingerprint "swirl" */
+    .finger{
+      width:62px;
+      height:78px;
+      border-radius:50% 50% 46% 46%;
+      opacity:.80;
+      transform: rotate(-8deg);
+      background:
+        repeating-radial-gradient(
+          circle at 45% 45%,
+          rgba(0,0,0,.70) 0px,
+          rgba(0,0,0,.70) 1px,
+          rgba(0,0,0,0) 2px,
+          rgba(0,0,0,0) 4px
+        );
+      filter: contrast(1.15) blur(.15px);
+    }
+
+    /* Slight variation for realism */
+    .finger.alt1{ transform: rotate(6deg) scale(1.02); background-position: 3px 2px; }
+    .finger.alt2{ transform: rotate(-2deg) scale(.98); background-position: -2px 1px; }
+    .finger.alt3{ transform: rotate(10deg) scale(1.01); background-position: 1px -3px; }
+    .finger.alt4{ transform: rotate(-10deg) scale(1.03); background-position: -3px -2px; }
+
+    .row-title{
+      font-size:11px;
+      color:var(--label);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin:6px 0 10px 0;
+      font-weight:700;
+    }
+
+    /* Bottom simultaneous prints */
+    .simul{
+      padding:10px;
+    }
+    .simul-grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .big-box{
+      border: var(--gridW2) solid var(--blue);
+      background:#fff;
+      padding:8px;
+    }
+    .big-label{
+      font-size:10px;
+      color:var(--label);
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-bottom:8px;
+      min-height:16px;
+    }
+    .big-area{
+      height:120px;
+      border: var(--gridW) solid var(--blue);
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      gap:16px;
+      padding:10px;
+    }
+    .four-pack{
+      display:flex;
+      gap:10px;
+    }
+    .finger.small{
+      width:44px;
+      height:62px;
+      transform:none;
+      border-radius:50% 50% 46% 46%;
+      opacity:.80;
+    }
+
+    .fd-footer{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:11px;
+      color:var(--label);
+      margin-top:8px;
+      padding-top:8px;
+      border-top: var(--gridW) solid var(--blue);
+    }
+    .fd-footer b{ color:var(--blue2); }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .fd{ width:100%; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-fingerprint"></i> Forensics — Fingerprint Card</h2>
+
+      <div class="cc-card">
+        <label class="label" for="name">Name</label>
+        <input id="name" class="input" type="text" value="KAFLE, MAMTA" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="alias">Alias</label>
+        <input id="alias" class="input" type="text" value="N/A" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="dob">DOB</label>
+            <input id="dob" class="input" type="text" value="1995-04-12" />
+          </div>
+          <div>
+            <label class="label" for="sex">Sex</label>
+            <select id="sex" class="select">
+              <option>F</option>
+              <option>M</option>
+              <option selected>F</option>
+              <option>X</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="race">Race</label>
+            <input id="race" class="input" type="text" value="ASIAN" />
+          </div>
+          <div>
+            <label class="label" for="height">Height</label>
+            <input id="height" class="input" type="text" value="5'3&quot;" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="weight">Weight</label>
+            <input id="weight" class="input" type="text" value="120 LB" />
+          </div>
+          <div>
+            <label class="label" for="eyes">Eyes</label>
+            <input id="eyes" class="input" type="text" value="BRN" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="hair">Hair</label>
+        <input id="hair" class="input" type="text" value="BLK" />
+
+        <p class="tiny">Top section updates instantly. Blue grid lines mimic FD-258 style.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="printedDate">Date Printed</label>
+            <input id="printedDate" class="input" type="text" value="2025-12-28" />
+          </div>
+          <div>
+            <label class="label" for="officer">Officer Name</label>
+            <input id="officer" class="input" type="text" value="Det. R. THAPA" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <button id="applyBtn" class="btn"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Apply</button>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <p class="tiny">Exports the fingerprint card (right panel) as evidence.</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="fd" aria-label="Fingerprint Card (FD-258 Style)">
+
+        <div class="fd-topbar">
+          <div>
+            <div class="fd-title">Fingerprint Card</div>
+            <div class="fd-sub">FD-258 style layout — blue ink on white paper</div>
+          </div>
+          <div class="fd-meta">
+            <div><b>Date Printed:</b> <span id="dateOut">2025-12-28</span></div>
+            <div><b>Officer:</b> <span id="officerOut">Det. R. THAPA</span></div>
+          </div>
+        </div>
+
+        <!-- TOP: Demographics -->
+        <div class="section">
+          <div class="demo">
+            <div class="cell">
+              <div class="k">Name</div>
+              <div id="nameOut" class="v">KAFLE, MAMTA</div>
+            </div>
+            <div class="cell">
+              <div class="k">Alias</div>
+              <div id="aliasOut" class="v">N/A</div>
+            </div>
+            <div class="cell">
+              <div class="k">DOB</div>
+              <div id="dobOut" class="v">1995-04-12</div>
+            </div>
+            <div class="cell">
+              <div class="k">Sex</div>
+              <div id="sexOut" class="v">F</div>
+            </div>
+
+            <div class="cell">
+              <div class="k">Race</div>
+              <div id="raceOut" class="v">ASIAN</div>
+            </div>
+            <div class="cell">
+              <div class="k">Height</div>
+              <div id="heightOut" class="v">5'3"</div>
+            </div>
+            <div class="cell">
+              <div class="k">Weight</div>
+              <div id="weightOut" class="v">120 LB</div>
+            </div>
+            <div class="cell">
+              <div class="k">Eyes</div>
+              <div id="eyesOut" class="v">BRN</div>
+            </div>
+
+            <div class="cell">
+              <div class="k">Hair</div>
+              <div id="hairOut" class="v">BLK</div>
+            </div>
+            <div class="cell">
+              <div class="k">ID No.</div>
+              <div class="v">—</div>
+            </div>
+            <div class="cell">
+              <div class="k">Place of Birth</div>
+              <div class="v">—</div>
+            </div>
+            <div class="cell">
+              <div class="k">Residence</div>
+              <div class="v">—</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- MIDDLE: Individual prints -->
+        <div class="section prints">
+          <div class="row-title">Individual Impressions</div>
+
+          <div class="prints-grid">
+            <div class="print-box">
+              <div class="print-label">1. R. Thumb</div>
+              <div class="print-area"><div class="finger alt1"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">2. R. Index</div>
+              <div class="print-area"><div class="finger alt2"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">3. R. Middle</div>
+              <div class="print-area"><div class="finger alt3"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">4. R. Ring</div>
+              <div class="print-area"><div class="finger alt4"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">5. R. Little</div>
+              <div class="print-area"><div class="finger alt1"></div></div>
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <div class="prints-grid">
+            <div class="print-box">
+              <div class="print-label">6. L. Thumb</div>
+              <div class="print-area"><div class="finger alt2"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">7. L. Index</div>
+              <div class="print-area"><div class="finger alt3"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">8. L. Middle</div>
+              <div class="print-area"><div class="finger alt4"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">9. L. Ring</div>
+              <div class="print-area"><div class="finger alt1"></div></div>
+            </div>
+            <div class="print-box">
+              <div class="print-label">10. L. Little</div>
+              <div class="print-area"><div class="finger alt2"></div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- BOTTOM: Simultaneous prints -->
+        <div class="section simul">
+          <div class="row-title">Simultaneous Impressions</div>
+          <div class="simul-grid">
+            <div class="big-box">
+              <div class="big-label">Left Four Fingers Taken Simultaneously</div>
+              <div class="big-area">
+                <div class="four-pack">
+                  <div class="finger small alt1"></div>
+                  <div class="finger small alt2"></div>
+                  <div class="finger small alt3"></div>
+                  <div class="finger small alt4"></div>
+                </div>
+              </div>
+            </div>
+
+            <div class="big-box">
+              <div class="big-label">Right Four Fingers Taken Simultaneously</div>
+              <div class="big-area">
+                <div class="four-pack">
+                  <div class="finger small alt2"></div>
+                  <div class="finger small alt3"></div>
+                  <div class="finger small alt4"></div>
+                  <div class="finger small alt1"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="fd-footer">
+          <div><b>Case:</b> ________</div>
+          <div><b>Signature:</b> ____________________</div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const nameIn = document.getElementById('name');
+    const aliasIn = document.getElementById('alias');
+    const dobIn = document.getElementById('dob');
+    const sexIn = document.getElementById('sex');
+    const raceIn = document.getElementById('race');
+    const heightIn = document.getElementById('height');
+    const weightIn = document.getElementById('weight');
+    const eyesIn = document.getElementById('eyes');
+    const hairIn = document.getElementById('hair');
+    const printedDateIn = document.getElementById('printedDate');
+    const officerIn = document.getElementById('officer');
+
+    // Outputs
+    const nameOut = document.getElementById('nameOut');
+    const aliasOut = document.getElementById('aliasOut');
+    const dobOut = document.getElementById('dobOut');
+    const sexOut = document.getElementById('sexOut');
+    const raceOut = document.getElementById('raceOut');
+    const heightOut = document.getElementById('heightOut');
+    const weightOut = document.getElementById('weightOut');
+    const eyesOut = document.getElementById('eyesOut');
+    const hairOut = document.getElementById('hairOut');
+    const dateOut = document.getElementById('dateOut');
+    const officerOut = document.getElementById('officerOut');
+
+    const applyBtn = document.getElementById('applyBtn');
+
+    function apply(){
+      nameOut.textContent = (nameIn.value || "").trim();
+      aliasOut.textContent = (aliasIn.value || "").trim();
+      dobOut.textContent = (dobIn.value || "").trim();
+      sexOut.textContent = (sexIn.value || "").trim();
+      raceOut.textContent = (raceIn.value || "").trim();
+      heightOut.textContent = (heightIn.value || "").trim();
+      weightOut.textContent = (weightIn.value || "").trim();
+      eyesOut.textContent = (eyesIn.value || "").trim();
+      hairOut.textContent = (hairIn.value || "").trim();
+      dateOut.textContent = (printedDateIn.value || "").trim();
+      officerOut.textContent = (officerIn.value || "").trim();
+    }
+
+    applyBtn.addEventListener('click', apply);
+    [nameIn, aliasIn, dobIn, sexIn, raceIn, heightIn, weightIn, eyesIn, hairIn, printedDateIn, officerIn].forEach(el=>{
+      el.addEventListener('input', apply);
+      el.addEventListener('change', apply);
+    });
+
+    apply();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `fingerprint_card_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

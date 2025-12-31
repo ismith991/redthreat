@@ -1,0 +1,1095 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Red Thread Games — Evidence Engine | Cipher Code</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700;900&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --line:#2a2a2a;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --red:#d32f2f;
+
+      --paper:#f4f1ea;
+      --paperEdge:#e3ded2;
+      --ink:#141414;
+      --grid:#d6d0c4;
+
+      --mono:"Courier Prime", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:var(--sans);
+      overflow:hidden;
+    }
+
+    /* Split layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* Left: Control Center */
+    .control{
+      width:30%;
+      min-width:340px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-top{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+    .cc-title{
+      margin:0;
+      font-family:var(--mono);
+      text-transform:uppercase;
+      letter-spacing:.12em;
+      font-size:13px;
+      line-height:1.4;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-badge{
+      border:1px solid rgba(211,47,47,.65);
+      color:var(--red);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:10px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      display:flex;
+      align-items:center;
+      gap:8px;
+      white-space:nowrap;
+      margin-top:2px;
+    }
+    .cc-badge .dot{
+      width:8px; height:8px; border-radius:50%;
+      background:var(--red);
+      box-shadow:0 0 12px rgba(211,47,47,.65);
+    }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:14px;
+      margin-bottom:12px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:11px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:var(--sans);
+    }
+    .textarea{ min-height:98px; resize:vertical; font-family:var(--mono); }
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+    .divider{ height:1px; background:var(--line); margin:12px 0; opacity:.9; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.92), rgba(211,47,47,.76));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:900;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.45;
+      margin:10px 0 0 0;
+    }
+
+    /* Right: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4-like page */
+    .page{
+      width: 794px;        /* ~A4 at 96dpi */
+      min-height: 1123px;  /* ~A4 at 96dpi */
+      background:
+        radial-gradient(1200px 600px at 10% 10%, rgba(255,255,255,.40), transparent 55%),
+        radial-gradient(1000px 500px at 90% 80%, rgba(0,0,0,.08), transparent 60%),
+        linear-gradient(180deg, var(--paper), var(--paperEdge));
+      color:var(--ink);
+      border-radius:14px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.07);
+      position:relative;
+      overflow:hidden;
+      padding:34px 36px 30px;
+    }
+
+    /* subtle grid (decoder sheet vibe) */
+    .page:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        repeating-linear-gradient(0deg, rgba(30,30,30,.06) 0 1px, transparent 1px 28px),
+        repeating-linear-gradient(90deg, rgba(30,30,30,.05) 0 1px, transparent 1px 28px);
+      opacity:.35;
+      pointer-events:none;
+    }
+
+    .hdr{
+      position:relative;
+      z-index:2;
+      display:flex;
+      justify-content:space-between;
+      gap:18px;
+      align-items:flex-start;
+      margin-bottom:18px;
+    }
+
+    .hdr .left h1{
+      margin:0;
+      font-family:var(--mono);
+      letter-spacing:.20em;
+      text-transform:uppercase;
+      font-size:20px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .hdr .left h1 i{ color:var(--red); }
+    .hdr .left .sub{
+      margin:8px 0 0 0;
+      font-family:var(--mono);
+      font-size:12px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(0,0,0,.70);
+      line-height:1.4;
+    }
+
+    .stamp{
+      position:relative;
+      z-index:2;
+      border:2px solid var(--red);
+      color:var(--red);
+      font-family:var(--mono);
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      font-weight:700;
+      padding:10px 12px;
+      border-radius:10px;
+      transform:rotate(-10deg);
+      background:rgba(211,47,47,.06);
+      box-shadow:0 10px 20px rgba(0,0,0,.15);
+      white-space:nowrap;
+    }
+
+    .meta{
+      position:relative;
+      z-index:2;
+      display:grid;
+      grid-template-columns: 1.2fr .8fr .8fr;
+      gap:10px;
+      margin-bottom:16px;
+      font-family:var(--mono);
+      font-size:12px;
+      color:rgba(0,0,0,.78);
+    }
+    .meta .box{
+      border:1px solid rgba(0,0,0,.18);
+      border-radius:12px;
+      padding:10px 12px;
+      background:rgba(255,255,255,.45);
+    }
+    .meta b{ letter-spacing:.08em; text-transform:uppercase; }
+
+    /* Main cipher areas */
+    .cipherWrap{
+      position:relative;
+      z-index:2;
+      display:grid;
+      grid-template-rows: auto auto;
+      gap:14px;
+    }
+
+    .section{
+      border:1px solid rgba(0,0,0,.18);
+      border-radius:14px;
+      background:rgba(255,255,255,.45);
+      overflow:hidden;
+    }
+    .section .title{
+      font-family:var(--mono);
+      font-size:12px;
+      letter-spacing:.16em;
+      text-transform:uppercase;
+      padding:10px 12px;
+      border-bottom:1px solid rgba(0,0,0,.12);
+      background:rgba(0,0,0,.03);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(0,0,0,.14);
+      background:rgba(255,255,255,.55);
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(0,0,0,.75);
+      white-space:nowrap;
+    }
+
+    /* Cipher output modes */
+    .cipherOut{
+      padding:14px 14px 16px;
+      font-family:var(--mono);
+      color:rgba(0,0,0,.88);
+    }
+
+    .cipherBlock{
+      border:1px dashed rgba(0,0,0,.22);
+      border-radius:12px;
+      padding:12px 12px;
+      background:rgba(255,255,255,.60);
+      white-space:pre-wrap;
+      word-break:break-word;
+      line-height:1.5;
+      font-size:13px;
+      min-height:120px;
+    }
+
+    .gridMode{
+      display:grid;
+      grid-template-columns: repeat(18, 1fr);
+      gap:6px;
+      padding:12px;
+      border:1px dashed rgba(0,0,0,.22);
+      border-radius:12px;
+      background:rgba(255,255,255,.60);
+      min-height:240px;
+      align-content:start;
+    }
+    .cell{
+      height:30px;
+      border:1px solid rgba(0,0,0,.18);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:13px;
+      background:rgba(255,255,255,.65);
+    }
+    .cell.blank{
+      background:rgba(0,0,0,.03);
+      border-style:dashed;
+      opacity:.55;
+    }
+
+    /* Key table */
+    .keyGrid{
+      display:grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap:12px;
+      padding:12px;
+    }
+    .keyTable{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      font-family:var(--mono);
+      font-size:12px;
+      overflow:hidden;
+      border:1px solid rgba(0,0,0,.16);
+      border-radius:12px;
+      background:rgba(255,255,255,.55);
+    }
+    .keyTable th, .keyTable td{
+      padding:8px 10px;
+      border-bottom:1px solid rgba(0,0,0,.10);
+    }
+    .keyTable th{
+      text-align:left;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:11px;
+      background:rgba(0,0,0,.03);
+    }
+    .keyTable tr:last-child td{ border-bottom:none; }
+    .kPlain{
+      width:42%;
+      color:rgba(0,0,0,.85);
+      font-weight:700;
+    }
+    .kCipher{
+      width:58%;
+      color:rgba(0,0,0,.82);
+    }
+
+    .footerNote{
+      position:relative;
+      z-index:2;
+      margin-top:14px;
+      font-family:var(--mono);
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(0,0,0,.65);
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      flex-wrap:wrap;
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+
+    /* Mobile-ish */
+    @media (max-width: 1050px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .page{ width:100%; min-height:unset; }
+      .gridMode{ grid-template-columns: repeat(14, 1fr); }
+      .meta{ grid-template-columns:1fr; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT PANEL -->
+    <aside class="control">
+      <div class="cc-top">
+        <h2 class="cc-title"><i class="fa-solid fa-key"></i> Cipher Code Generator</h2>
+        <div class="cc-badge"><span class="dot"></span> SECURE CONNECTION</div>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="caseTitle">Sheet Title</label>
+        <input id="caseTitle" class="input" type="text" value="CIPHER WORKSHEET" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="caseId">Case ID</label>
+            <input id="caseId" class="input" type="text" value="RT-CC-014" />
+          </div>
+          <div>
+            <label class="label" for="sheetDate">Date</label>
+            <input id="sheetDate" class="input" type="text" value="2025-12-30" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="cipherType">Cipher Type</label>
+        <select id="cipherType" class="select">
+          <option value="substitution" selected>Substitution (Symbols)</option>
+          <option value="caesar">Caesar Shift</option>
+        </select>
+
+        <div class="divider"></div>
+
+        <label class="label" for="plainText">Secret Message (Plaintext)</label>
+        <textarea id="plainText" class="textarea" placeholder="Type something like: MEET ME AT MIDNIGHT">MEET ME AT MIDNIGHT</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="copyCipher" class="btnGhost">
+            <i class="fa-solid fa-copy" style="margin-right:8px;"></i> Copy Ciphertext
+          </button>
+          <button id="demoBtn" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i> Demo
+          </button>
+        </div>
+
+        <p class="tiny">Tip: Use “Substitution” for the Zodiac-style vibe. Use “Caesar” for quick shifts and simple clues.</p>
+      </div>
+
+      <div class="cc-card" id="subPanel">
+        <div class="row">
+          <div>
+            <label class="label" for="symbolSet">Symbol Set</label>
+            <select id="symbolSet" class="select">
+              <option value="zodiac" selected>Cryptogram Symbols (Mixed)</option>
+              <option value="punct">Punctuation Heavy</option>
+              <option value="shuffled">Shuffled Alphabet (A→Q etc.)</option>
+              <option value="numbers">Numbers (A→01..26)</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="seed">Key Seed</label>
+            <input id="seed" class="input" type="text" value="REDTHREAD" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="regenKey" class="btnGhost">
+            <i class="fa-solid fa-shuffle" style="margin-right:8px;"></i> Regenerate Key
+          </button>
+          <button id="lockKey" class="btnGhost" title="Locks mapping so edits won't regenerate accidentally">
+            <i class="fa-solid fa-lock" style="margin-right:8px;"></i> Lock Key
+          </button>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="groupSize">Grouping</label>
+            <select id="groupSize" class="select">
+              <option value="0">None</option>
+              <option value="4">Groups of 4</option>
+              <option value="5" selected>Groups of 5</option>
+              <option value="6">Groups of 6</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="gridMode">Output Style</label>
+            <select id="gridMode" class="select">
+              <option value="block" selected>Block</option>
+              <option value="grid">Grid (Decoder Sheet)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="unknownChar">Unknown Character Handling</label>
+        <select id="unknownChar" class="select">
+          <option value="keep" selected>Keep as-is (best for stories)</option>
+          <option value="dot">Replace with •</option>
+          <option value="blank">Blank</option>
+        </select>
+      </div>
+
+      <div class="cc-card" id="caesarPanel" style="display:none;">
+        <label class="label" for="shift">Shift Amount</label>
+        <div class="row">
+          <input id="shift" class="input" type="number" min="-25" max="25" value="3" />
+          <button id="randomShift" class="btnGhost">
+            <i class="fa-solid fa-dice" style="margin-right:8px;"></i> Random
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="caesarMode">Output</label>
+        <select id="caesarMode" class="select">
+          <option value="letters" selected>Shifted Letters</option>
+          <option value="rot13">Force ROT13 (classic)</option>
+        </select>
+
+        <p class="tiny">Caesar shift only affects A–Z. Numbers and punctuation pass through unchanged.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg" selected>High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT PANEL -->
+    <main class="preview-wrap">
+      <section class="page" id="captureArea" aria-label="Cipher worksheet preview">
+        <div class="hdr">
+          <div class="left">
+            <h1><i class="fa-solid fa-code"></i> <span id="titleOut">CIPHER WORKSHEET</span></h1>
+            <p class="sub" id="subOut">SUBSTITUTION CIPHER — SYMBOL MAP</p>
+          </div>
+          <div class="stamp">CLASSIFIED</div>
+        </div>
+
+        <div class="meta">
+          <div class="box"><b>CASE ID</b><div id="caseIdOut" style="margin-top:6px;">RT-CC-014</div></div>
+          <div class="box"><b>DATE</b><div id="dateOut" style="margin-top:6px;">2025-12-30</div></div>
+          <div class="box"><b>OPERATOR</b><div id="opOut" style="margin-top:6px;">EVIDENCE ENGINE</div></div>
+        </div>
+
+        <div class="cipherWrap">
+          <div class="section">
+            <div class="title">
+              <span>ENCRYPTED MESSAGE</span>
+              <span class="pill"><i class="fa-solid fa-shield-halved"></i> <span id="modePill">SUBSTITUTION</span></span>
+            </div>
+            <div class="cipherOut">
+              <div id="cipherBlock" class="cipherBlock"></div>
+              <div id="cipherGrid" class="gridMode" style="display:none;"></div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="title">
+              <span>KEY / MAPPING</span>
+              <span class="pill"><i class="fa-solid fa-key"></i> <span id="keyMeta">SEED: REDTHREAD</span></span>
+            </div>
+
+            <div class="keyGrid">
+              <table class="keyTable" aria-label="Key table A-M">
+                <thead>
+                  <tr><th>PLAIN</th><th>CIPHER</th></tr>
+                </thead>
+                <tbody id="keyLeft"></tbody>
+              </table>
+
+              <table class="keyTable" aria-label="Key table N-Z">
+                <thead>
+                  <tr><th>PLAIN</th><th>CIPHER</th></tr>
+                </thead>
+                <tbody id="keyRight"></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="footerNote">
+          <div><span style="color:var(--red);font-weight:900;">RED THREAD</span> // Evidence Engine v2.0</div>
+          <div id="footerHint">Tip: swap the seed to generate a totally different key.</div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    // Controls
+    const caseTitle = $("caseTitle");
+    const caseId = $("caseId");
+    const sheetDate = $("sheetDate");
+
+    const cipherType = $("cipherType");
+    const plainText = $("plainText");
+
+    const subPanel = $("subPanel");
+    const caesarPanel = $("caesarPanel");
+
+    const symbolSet = $("symbolSet");
+    const seedIn = $("seed");
+    const regenKey = $("regenKey");
+    const lockKeyBtn = $("lockKey");
+
+    const groupSize = $("groupSize");
+    const gridMode = $("gridMode");
+    const unknownChar = $("unknownChar");
+
+    const shift = $("shift");
+    const randomShift = $("randomShift");
+    const caesarMode = $("caesarMode");
+
+    const copyCipher = $("copyCipher");
+    const demoBtn = $("demoBtn");
+
+    // Outputs
+    const titleOut = $("titleOut");
+    const subOut = $("subOut");
+    const caseIdOut = $("caseIdOut");
+    const dateOut = $("dateOut");
+    const modePill = $("modePill");
+
+    const cipherBlock = $("cipherBlock");
+    const cipherGrid = $("cipherGrid");
+
+    const keyLeft = $("keyLeft");
+    const keyRight = $("keyRight");
+    const keyMeta = $("keyMeta");
+    const footerHint = $("footerHint");
+
+    // Export
+    const downloadBtn = $("downloadBtn");
+    const exportType = $("exportType");
+    const exportScale = $("exportScale");
+    const captureArea = $("captureArea");
+
+    const ALPH = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+
+    // Mapping state
+    let locked = false;
+    let mapping = {}; // letter -> token
+
+    // Symbol pools
+    const pools = {
+      zodiac: [
+        "◆","◇","■","□","▲","△","○","●","✖","✚","✦","✧","✶","☾","☼","☥","☠","✪",
+        "♠","♣","♥","♦","♟","✿","✸","✹","✺","✣","✥","✜","✱","✲","✳","✴","✵",
+        "⟡","⟠","⟟","⟐","⟑","⟒","⟓","⟔","⟕","⟖","⟗","⟘","⟁","⟂","⟃","⟄"
+      ],
+      punct: ["!","@","#","$","%","^","&","*","(",")","-","+","=","{","}","[","]",";",":",",",".","<",">","?","/","~","|","_"],
+      shuffled: ALPH.split(""),
+      numbers: Array.from({length:26}, (_,i)=> String(i+1).padStart(2,"0"))
+    };
+
+    function sanitize(s){ return (s ?? "").toString(); }
+    function normalizePlain(s){
+      return sanitize(s).toUpperCase();
+    }
+
+    // Seeded RNG (xmur3 + mulberry32)
+    function xmur3(str){
+      let h = 1779033703 ^ str.length;
+      for (let i=0;i<str.length;i++){
+        h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+        h = (h << 13) | (h >>> 19);
+      }
+      return function(){
+        h = Math.imul(h ^ (h >>> 16), 2246822507);
+        h = Math.imul(h ^ (h >>> 13), 3266489909);
+        h ^= (h >>> 16);
+        return h >>> 0;
+      };
+    }
+    function mulberry32(a){
+      return function(){
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      }
+    }
+    function seededShuffle(arr, seedStr){
+      const seedFn = xmur3(seedStr);
+      const rand = mulberry32(seedFn());
+      const a = arr.slice();
+      for(let i=a.length-1;i>0;i--){
+        const j = Math.floor(rand() * (i+1));
+        [a[i], a[j]] = [a[j], a[i]];
+      }
+      return a;
+    }
+
+    function buildMapping(){
+      const seedStr = sanitize(seedIn.value || "REDTHREAD") + "::" + sanitize(symbolSet.value || "zodiac");
+      const pool = pools[symbolSet.value] ? pools[symbolSet.value].slice() : pools.zodiac.slice();
+
+      // If pool smaller than 26, repeat (rare but safe)
+      while(pool.length < 26) pool.push(...pool);
+
+      const shuffled = seededShuffle(pool, seedStr).slice(0,26);
+
+      mapping = {};
+      for(let i=0;i<26;i++){
+        mapping[ALPH[i]] = shuffled[i];
+      }
+    }
+
+    function applyUnknownPolicy(ch){
+      const mode = unknownChar.value;
+      if(mode === "blank") return "";
+      if(mode === "dot") return "•";
+      return ch;
+    }
+
+    function groupText(text, n){
+      const N = Number(n || 0);
+      if(!N || N < 2) return text;
+      // Remove spaces for grouping; keep them as separators afterwards
+      const raw = text.replace(/\s+/g, "");
+      let out = "";
+      for(let i=0;i<raw.length;i++){
+        out += raw[i];
+        if((i+1) % N === 0 && i !== raw.length-1) out += " ";
+      }
+      return out;
+    }
+
+    function encodeSubstitution(plain){
+      const s = normalizePlain(plain);
+      let out = "";
+      for(const ch of s){
+        if(ch === " "){ out += " "; continue; }
+        if(ALPH.includes(ch)) out += mapping[ch] ?? applyUnknownPolicy(ch);
+        else out += applyUnknownPolicy(ch);
+      }
+      return out;
+    }
+
+    function shiftChar(ch, n){
+      const idx = ALPH.indexOf(ch);
+      if(idx === -1) return ch;
+      let j = (idx + n) % 26;
+      if(j < 0) j += 26;
+      return ALPH[j];
+    }
+
+    function encodeCaesar(plain){
+      const s = normalizePlain(plain);
+      let n = Number(shift.value || 0);
+      if(caesarMode.value === "rot13") n = 13;
+      let out = "";
+      for(const ch of s){
+        if(ALPH.includes(ch)) out += shiftChar(ch, n);
+        else out += ch;
+      }
+      return out;
+    }
+
+    function renderCipherOutput(cipherText){
+      const mode = gridMode.value;
+      const grouped = (cipherType.value === "substitution")
+        ? groupText(cipherText, Number(groupSize.value || 0))
+        : cipherText; // Caesar: keep natural spacing
+
+      if(mode === "grid" && cipherType.value === "substitution"){
+        cipherBlock.style.display = "none";
+        cipherGrid.style.display = "grid";
+        cipherGrid.innerHTML = "";
+
+        const chars = grouped.split("");
+        // fill grid cells; keep spaces as blanks for legibility
+        for(const ch of chars){
+          const cell = document.createElement("div");
+          cell.className = "cell" + (ch === " " ? " blank" : "");
+          cell.textContent = (ch === " " ? "" : ch);
+          cipherGrid.appendChild(cell);
+        }
+        // pad a bit so it looks like a sheet
+        const minCells = 18 * 10; // 10 rows
+        while(cipherGrid.children.length < minCells){
+          const cell = document.createElement("div");
+          cell.className = "cell blank";
+          cell.textContent = "";
+          cipherGrid.appendChild(cell);
+        }
+      } else {
+        cipherGrid.style.display = "none";
+        cipherBlock.style.display = "block";
+        cipherBlock.textContent = grouped || "";
+      }
+    }
+
+    function renderKeyTable(){
+      keyLeft.innerHTML = "";
+      keyRight.innerHTML = "";
+
+      if(cipherType.value === "caesar"){
+        let n = Number(shift.value || 0);
+        if(caesarMode.value === "rot13") n = 13;
+
+        // Build caesar mapping for display
+        const caesarMap = {};
+        for(const ch of ALPH){
+          caesarMap[ch] = shiftChar(ch, n);
+        }
+
+        const leftLetters = ALPH.slice(0,13).split("");
+        const rightLetters = ALPH.slice(13).split("");
+
+        for(const ch of leftLetters){
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td class="kPlain">${ch}</td><td class="kCipher">${caesarMap[ch]}</td>`;
+          keyLeft.appendChild(tr);
+        }
+        for(const ch of rightLetters){
+          const tr = document.createElement("tr");
+          tr.innerHTML = `<td class="kPlain">${ch}</td><td class="kCipher">${caesarMap[ch]}</td>`;
+          keyRight.appendChild(tr);
+        }
+
+        keyMeta.textContent = `SHIFT: ${n >= 0 ? "+" : ""}${n}`;
+        footerHint.textContent = "Caesar shift affects A–Z only. Use this for quick clue notes or coded scraps.";
+        subOut.textContent = `CAESAR SHIFT — ${n >= 0 ? "+" : ""}${n}`;
+        modePill.textContent = "CAESAR";
+        return;
+      }
+
+      // Substitution key
+      const leftLetters = ALPH.slice(0,13).split("");
+      const rightLetters = ALPH.slice(13).split("");
+
+      for(const ch of leftLetters){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="kPlain">${ch}</td><td class="kCipher">${mapping[ch] ?? ""}</td>`;
+        keyLeft.appendChild(tr);
+      }
+      for(const ch of rightLetters){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td class="kPlain">${ch}</td><td class="kCipher">${mapping[ch] ?? ""}</td>`;
+        keyRight.appendChild(tr);
+      }
+
+      keyMeta.textContent = `SEED: ${sanitize(seedIn.value || "REDTHREAD")}`;
+      footerHint.textContent = "Tip: change the seed to generate a totally different symbol key for a new story.";
+      subOut.textContent = `SUBSTITUTION CIPHER — ${symbolSet.options[symbolSet.selectedIndex].text}`;
+      modePill.textContent = "SUBSTITUTION";
+    }
+
+    function updateAll(){
+      titleOut.textContent = sanitize(caseTitle.value || "CIPHER WORKSHEET");
+      caseIdOut.textContent = sanitize(caseId.value || "—");
+      dateOut.textContent = sanitize(sheetDate.value || "—");
+
+      // panels
+      const isSub = cipherType.value === "substitution";
+      subPanel.style.display = isSub ? "block" : "none";
+      caesarPanel.style.display = isSub ? "none" : "block";
+
+      if(isSub){
+        if(!locked) buildMapping();
+        const cipher = encodeSubstitution(plainText.value);
+        renderCipherOutput(cipher);
+      } else {
+        const cipher = encodeCaesar(plainText.value);
+        renderCipherOutput(cipher);
+      }
+
+      renderKeyTable();
+    }
+
+    // Lock key toggle
+    function setLocked(on){
+      locked = !!on;
+      lockKeyBtn.innerHTML = locked
+        ? `<i class="fa-solid fa-lock" style="margin-right:8px;"></i> Key Locked`
+        : `<i class="fa-solid fa-lock-open" style="margin-right:8px;"></i> Key Unlocked`;
+      lockKeyBtn.style.borderColor = locked ? "rgba(211,47,47,.65)" : "#303030";
+    }
+
+    lockKeyBtn.addEventListener("click", ()=>{
+      setLocked(!locked);
+      updateAll();
+    });
+
+    regenKey.addEventListener("click", ()=>{
+      if(locked){
+        // small nudge: unlock then regenerate
+        setLocked(false);
+      }
+      // Add a little randomness to seed while keeping it editable
+      seedIn.value = (sanitize(seedIn.value || "REDTHREAD") + "-" + String(Math.floor(Math.random()*999)).padStart(3,"0"));
+      updateAll();
+    });
+
+    randomShift.addEventListener("click", ()=>{
+      const r = Math.floor(Math.random()*51) - 25;
+      shift.value = String(r);
+      updateAll();
+    });
+
+    copyCipher.addEventListener("click", async ()=>{
+      // Prefer block text, but if grid mode, rebuild from plaintext again
+      let text = "";
+      if(cipherType.value === "substitution"){
+        text = groupText(encodeSubstitution(plainText.value), Number(groupSize.value || 0));
+      } else {
+        text = encodeCaesar(plainText.value);
+      }
+      try{
+        await navigator.clipboard.writeText(text);
+        alert("Ciphertext copied to clipboard.");
+      }catch(e){
+        prompt("Copy ciphertext:", text);
+      }
+    });
+
+    demoBtn.addEventListener("click", ()=>{
+      caseTitle.value = "CIPHER WORKSHEET";
+      caseId.value = "RT-CC-014";
+      sheetDate.value = "2025-12-30";
+
+      cipherType.value = "substitution";
+      symbolSet.value = "zodiac";
+      seedIn.value = "REDTHREAD";
+      groupSize.value = "5";
+      gridMode.value = "grid";
+      unknownChar.value = "keep";
+
+      plainText.value = "MEET ME AT MIDNIGHT. BRING THE KEY. DO NOT CALL.";
+
+      setLocked(false);
+      updateAll();
+    });
+
+    // Export
+    function pad2(n){ return String(n).padStart(2,"0"); }
+    function stamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      // Ensure latest render
+      updateAll();
+
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `cipher_code_${stamp()}`;
+
+      if(type === "jpg"){
+        const url = canvas.toDataURL("image/jpeg", 0.95);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:"p", unit:"pt", format:"a4" });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener("click", exportEvidence);
+
+    // Change handlers
+    [
+      caseTitle, caseId, sheetDate,
+      cipherType, plainText,
+      symbolSet, seedIn, groupSize, gridMode, unknownChar,
+      shift, caesarMode
+    ].forEach(el=>{
+      el.addEventListener("input", updateAll);
+      el.addEventListener("change", updateAll);
+    });
+
+    // Init
+    setLocked(false);
+    buildMapping();
+    updateAll();
+  </script>
+</body>
+</html>

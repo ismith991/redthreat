@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Bloodstain Pattern Analysis</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Sketch sheet */
+      --paper:#ffffff;
+      --ink:#121212;
+      --sub:#5e5e5e;
+      --grid:#b9d7ff;          /* light blue grid */
+      --grid2:#d7e9ff;         /* lighter */
+      --blood:#8b0000;         /* dark blood */
+      --blood2:#b00020;        /* brighter */
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split-Screen Layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Report canvas */
+    .sheet{
+      width: 980px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d6d6d6;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      font-family:"Courier Prime", monospace;
+      position:relative;
+
+      /* graph paper background */
+      background:
+        linear-gradient(var(--grid2) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid2) 1px, transparent 1px),
+        linear-gradient(var(--grid) 1px, transparent 1px),
+        linear-gradient(90deg, var(--grid) 1px, transparent 1px),
+        var(--paper);
+      background-size: 10px 10px, 10px 10px, 50px 50px, 50px 50px, auto;
+      background-position: 0 0, 0 0, 0 0, 0 0, 0 0;
+    }
+
+    .top{
+      padding:18px 18px 12px 18px;
+      border-bottom:1px solid rgba(0,0,0,.08);
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:14px;
+      background:rgba(255,255,255,.85);
+      backdrop-filter: blur(2px);
+    }
+
+    .h1{
+      font-weight:700;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:16px;
+      margin:0;
+    }
+    .sub{
+      margin-top:5px;
+      font-size:12px;
+      color:var(--sub);
+      letter-spacing:.04em;
+    }
+
+    .meta{
+      text-align:right;
+      font-size:12px;
+      color:#2a2a2a;
+      line-height:1.4;
+      border:1px solid rgba(0,0,0,.12);
+      border-radius:10px;
+      padding:10px 12px;
+      background:rgba(255,255,255,.95);
+      min-width:300px;
+    }
+    .meta .k{ color:#5d5d5d; }
+    .meta .v{ font-weight:700; }
+
+    .body{
+      padding:16px 18px 18px 18px;
+      display:grid;
+      grid-template-columns: 1.1fr .9fr;
+      gap:16px;
+      align-items:start;
+    }
+
+    /* Sketch panel */
+    .sketch{
+      border:2px solid #111;
+      border-radius:12px;
+      background:rgba(255,255,255,.88);
+      padding:12px;
+      min-height:520px;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .sketch-title{
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:10px;
+      color:#1a1a1a;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+    }
+
+    .legend{
+      font-size:11px;
+      color:#4a4a4a;
+      letter-spacing:.02em;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .pill{
+      border:1px solid rgba(0,0,0,.18);
+      padding:4px 8px;
+      border-radius:999px;
+      background:#fff;
+    }
+
+    /* Room box */
+    .room{
+      width: 78%;
+      height: 66%;
+      border:2px solid #111;
+      margin: 10px auto 0 auto;
+      position:relative;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          rgba(0,0,0,.03) 0px,
+          rgba(0,0,0,.03) 1px,
+          transparent 2px,
+          transparent 16px
+        );
+    }
+    .room-label{
+      position:absolute;
+      top:-12px;
+      left:12px;
+      background:#fff;
+      padding:2px 8px;
+      border:1px solid rgba(0,0,0,.18);
+      border-radius:999px;
+      font-size:11px;
+      color:#222;
+      letter-spacing:.03em;
+      font-weight:700;
+      text-transform:uppercase;
+    }
+
+    /* Blood drops */
+    .drop{
+      position:absolute;
+      width:18px;
+      height:30px;
+      border-radius:50% 50% 55% 55%;
+      background: radial-gradient(circle at 35% 25%, rgba(255,255,255,.18), rgba(255,255,255,0) 45%),
+                  linear-gradient(180deg, var(--blood2), var(--blood));
+      box-shadow: 0 4px 10px rgba(0,0,0,.20);
+      transform-origin:center;
+    }
+    .drop::after{
+      content:"";
+      position:absolute;
+      left:50%;
+      bottom:-10px;
+      transform:translateX(-50%);
+      width:6px;
+      height:12px;
+      border-radius:50%;
+      background:linear-gradient(180deg, rgba(176,0,32,.9), rgba(139,0,0,.95));
+      opacity:.55;
+      filter: blur(.2px);
+    }
+
+    /* Trajectory vectors */
+    .vector{
+      position:absolute;
+      width:120px;
+      height:2px;
+      background:#111;
+      opacity:.75;
+      transform-origin:left center;
+    }
+    .vector::after{
+      content:"";
+      position:absolute;
+      right:-2px;
+      top:50%;
+      transform:translateY(-50%);
+      width:0;height:0;
+      border-left:10px solid #111;
+      border-top:5px solid transparent;
+      border-bottom:5px solid transparent;
+    }
+
+    .note-box{
+      position:absolute;
+      bottom:12px;
+      left:12px;
+      right:12px;
+      border:1px dashed rgba(0,0,0,.35);
+      border-radius:10px;
+      padding:10px;
+      font-size:11px;
+      color:#3b3b3b;
+      background:rgba(255,255,255,.92);
+    }
+    .note-box b{ color:#111; }
+
+    /* Data table */
+    .data{
+      border:2px solid #111;
+      border-radius:12px;
+      background:rgba(255,255,255,.92);
+      padding:12px;
+    }
+
+    .data-title{
+      font-size:12px;
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:10px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      color:#1a1a1a;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    thead th{
+      text-align:left;
+      border-bottom:1px solid rgba(0,0,0,.18);
+      padding:8px 8px;
+      color:#333;
+      background:rgba(0,0,0,.03);
+    }
+    tbody td{
+      padding:9px 8px;
+      border-bottom:1px solid rgba(0,0,0,.10);
+      vertical-align:top;
+    }
+    tbody tr:last-child td{ border-bottom:none; }
+    .k{ color:#5a5a5a; width:38%; }
+    .v{ font-weight:700; color:#111; }
+
+    .origin{
+      font-family:"Courier Prime", monospace;
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+
+    .footer{
+      border-top:1px solid rgba(0,0,0,.08);
+      padding:12px 18px;
+      font-size:11px;
+      color:#444;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      background:rgba(255,255,255,.85);
+    }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .sheet{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .body{ grid-template-columns:1fr; }
+      .meta{ min-width:0; width:100%; text-align:left; }
+      .top{ flex-direction:column; align-items:flex-start; }
+      .room{ width:92%; }
+      .sketch{ min-height:460px; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-droplet"></i> Forensics — Blood Spatter Analysis</h2>
+
+      <div class="cc-card">
+        <label class="label" for="roomName">Room Name</label>
+        <input id="roomName" class="input" type="text" value="LIVING ROOM" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="stainType">Stain Type</label>
+        <select id="stainType" class="select">
+          <option selected>Passive</option>
+          <option>Transfer</option>
+          <option>Projected</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="angle">Calculated Angle of Impact (°)</label>
+        <input id="angle" class="input" type="number" min="0" max="90" step="0.1" value="28.6" />
+
+        <p class="tiny">Angle drives the “Impact Angle” and updates the vectors.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="applyBtn" class="btn"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Apply</button>
+          <button id="randomBtn" class="ghost"><i class="fa-solid fa-dice" style="margin-right:8px"></i>Randomize Sketch</button>
+        </div>
+
+        <p class="tiny">Randomize changes drop placement + directionality for variety.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="sheet" aria-label="Bloodstain Pattern Analysis Sheet">
+
+        <div class="top">
+          <div>
+            <h1 class="h1">BLOODSTAIN PATTERN ANALYSIS</h1>
+            <div class="sub">Crime scene sketch + trajectory vectors (graph paper base)</div>
+          </div>
+
+          <div class="meta">
+            <div><span class="k">Room:</span> <span id="roomOut" class="v">LIVING ROOM</span></div>
+            <div><span class="k">Stain Type:</span> <span id="typeOut" class="v">Passive</span></div>
+            <div><span class="k">Sheet:</span> <span class="v">BPA-01</span></div>
+          </div>
+        </div>
+
+        <div class="body">
+          <!-- Sketch -->
+          <div class="sketch" aria-label="Crime Scene Sketch">
+            <div class="sketch-title">
+              <span>Scene Sketch (Top-Down)</span>
+              <span class="legend">
+                <span class="pill"><i class="fa-solid fa-draw-polygon" style="margin-right:6px;"></i>Vectors</span>
+                <span class="pill"><i class="fa-solid fa-droplet" style="margin-right:6px;"></i>Stains</span>
+              </span>
+            </div>
+
+            <div class="room" id="roomBox">
+              <div id="roomLabel" class="room-label">LIVING ROOM</div>
+
+              <!-- Drops + vectors injected by JS -->
+            </div>
+
+            <div class="note-box">
+              <b>Note:</b> Vectors indicate estimated directionality based on stain elongation.
+              Area of origin computed from intersecting trajectories (approx.).
+            </div>
+          </div>
+
+          <!-- Data table -->
+          <div class="data" aria-label="BPA Data Table">
+            <div class="data-title">
+              <span>Measurement Summary</span>
+              <span style="font-size:11px;color:#555;">Ref: BPA / TRAJECTORY</span>
+            </div>
+
+            <table>
+              <thead>
+                <tr>
+                  <th>Parameter</th>
+                  <th>Value</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="k">Impact Angle</td>
+                  <td id="impactOut" class="v">28.6°</td>
+                </tr>
+                <tr>
+                  <td class="k">Directionality</td>
+                  <td id="dirOut" class="v">NE (approx.)</td>
+                </tr>
+                <tr>
+                  <td class="k">Area of Origin (X / Y / Z)</td>
+                  <td id="originOut" class="v origin">X: 1.8m · Y: 2.6m · Z: 0.9m</td>
+                </tr>
+              </tbody>
+            </table>
+
+            <div style="margin-top:12px; font-size:11px; color:#5a5a5a; line-height:1.5;">
+              <b>How to read:</b> X/Y represent floor plan coordinates from the room’s NW corner.
+              Z is estimated height above floor level.
+            </div>
+          </div>
+        </div>
+
+        <div class="footer">
+          <div><span style="color:#777;">Prepared:</span> <span id="tsOut">2025-12-28 16:41</span></div>
+          <div><span style="color:#777;">Unit:</span> Physical Forensics</div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Elements
+    const roomName = document.getElementById('roomName');
+    const stainType = document.getElementById('stainType');
+    const angle = document.getElementById('angle');
+
+    const roomOut = document.getElementById('roomOut');
+    const typeOut = document.getElementById('typeOut');
+    const roomLabel = document.getElementById('roomLabel');
+
+    const impactOut = document.getElementById('impactOut');
+    const dirOut = document.getElementById('dirOut');
+    const originOut = document.getElementById('originOut');
+    const tsOut = document.getElementById('tsOut');
+
+    const roomBox = document.getElementById('roomBox');
+
+    const applyBtn = document.getElementById('applyBtn');
+    const randomBtn = document.getElementById('randomBtn');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function nowStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+    function rand(min, max){ return Math.random()*(max-min)+min; }
+    function randInt(min, max){ return Math.floor(Math.random()*(max-min+1))+min; }
+
+    // Simple derived direction label from average vector angle
+    function dirFromAngle(deg){
+      // deg: 0 = east, 90 = south (we'll map visually: 45-ish -> SE)
+      // For simple label, treat 0 = E, 90 = S, 180 = W, 270 = N
+      const dirs = ["E","SE","S","SW","W","NW","N","NE"];
+      const idx = Math.round(((deg % 360) / 45)) % 8;
+      return dirs[idx];
+    }
+
+    // Approx origin based on angle + type (visual-only)
+    function computeOrigin(angleDeg, type){
+      const a = clamp(Number(angleDeg) || 0, 0, 90);
+      // More shallow angle -> farther travel -> larger X/Y
+      const travel = (1 - a/90) * 2.4 + 0.6; // 0.6..3.0
+      const x = (travel * (0.6 + Math.random()*0.4)).toFixed(1);
+      const y = (travel * (0.7 + Math.random()*0.4)).toFixed(1);
+      let zBase = a/90 * 1.7 + 0.2; // 0.2..1.9
+      if(type === "Projected") zBase += 0.4;
+      if(type === "Transfer") zBase -= 0.2;
+      const z = clamp(zBase, 0.1, 2.6).toFixed(1);
+      return { x, y, z };
+    }
+
+    function clearSketch(){
+      // remove injected drops/vectors but keep label
+      [...roomBox.querySelectorAll('.drop, .vector')].forEach(n => n.remove());
+    }
+
+    function addDrop(xPct, yPct, rotDeg, vecDeg, vecLen){
+      const d = document.createElement('div');
+      d.className = 'drop';
+      d.style.left = `calc(${xPct}% - 9px)`;
+      d.style.top = `calc(${yPct}% - 15px)`;
+      d.style.transform = `rotate(${rotDeg}deg) scale(${rand(0.9, 1.15)})`;
+      roomBox.appendChild(d);
+
+      const v = document.createElement('div');
+      v.className = 'vector';
+      v.style.left = `calc(${xPct}% - 2px)`;
+      v.style.top = `calc(${yPct}% - 1px)`;
+      v.style.width = `${vecLen}px`;
+      v.style.transform = `rotate(${vecDeg}deg)`;
+      roomBox.appendChild(v);
+    }
+
+    function buildSketch(){
+      clearSketch();
+
+      const a = clamp(Number(angle.value) || 0, 0, 90);
+      // Shallow = more elongated / sharper direction
+      const elongRot = (a < 35) ? rand(-35, -10) : rand(-20, 20);
+
+      // Choose a general direction based on stain type + angle
+      let baseVec = 315; // NE-ish (CSS rotate: 0 = to the right)
+      if(stainType.value === "Projected") baseVec = 300;
+      if(stainType.value === "Transfer") baseVec = 10;
+      if(stainType.value === "Passive") baseVec = 330;
+
+      // Add some jitter
+      const vec1 = baseVec + rand(-14, 14);
+      const vec2 = baseVec + rand(-18, 18);
+      const vec3 = baseVec + rand(-20, 20);
+
+      // Length based on angle (shallower angle -> longer)
+      const lenBase = 60 + (1 - a/90) * 80; // 60..140
+
+      addDrop(62, 58, elongRot, vec1, lenBase);
+      addDrop(46, 44, elongRot + rand(-10,10), vec2, lenBase * 0.9);
+      addDrop(70, 40, elongRot + rand(-12,12), vec3, lenBase * 0.8);
+
+      // Output direction label
+      dirOut.textContent = `${dirFromAngle(baseVec)} (approx.)`;
+    }
+
+    function apply(){
+      const rn = (roomName.value || "").trim().toUpperCase();
+      roomOut.textContent = rn || "—";
+      roomLabel.textContent = rn || "ROOM";
+      typeOut.textContent = stainType.value;
+
+      const a = clamp(Number(angle.value) || 0, 0, 90);
+      impactOut.textContent = `${a.toFixed(1)}°`;
+
+      const o = computeOrigin(a, stainType.value);
+      originOut.textContent = `X: ${o.x}m · Y: ${o.y}m · Z: ${o.z}m`;
+
+      tsOut.textContent = nowStamp();
+
+      buildSketch();
+    }
+
+    function randomize(){
+      const rooms = ["KITCHEN", "HALLWAY", "BEDROOM 2", "LIVING ROOM", "STAIRWELL", "GARAGE"];
+      roomName.value = rooms[randInt(0, rooms.length-1)];
+      stainType.value = ["Passive","Transfer","Projected"][randInt(0,2)];
+      angle.value = (rand(8, 62)).toFixed(1);
+      apply();
+    }
+
+    applyBtn.addEventListener('click', apply);
+    randomBtn.addEventListener('click', randomize);
+
+    [roomName, stainType, angle].forEach(el=>{
+      el.addEventListener('input', apply);
+      el.addEventListener('change', apply);
+    });
+
+    apply();
+
+    // ------- Export -------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `blood_spatter_analysis_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

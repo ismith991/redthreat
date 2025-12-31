@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — iMessage Generator</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts (fallbacks to system Apple fonts where available) -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* iMessage Dark */
+      --ios-bg:#000000;
+      --ios-header:#0b0b0c;
+      --ios-sep:rgba(255,255,255,.10);
+      --ios-blue:#0b84ff;
+      --ios-gray:#262628;
+      --ios-blueText:#0b84ff;
+      --ios-name:#ffffff;
+      --ios-sub:rgba(255,255,255,.55);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family: Roboto, system-ui, -apple-system, "SF Pro Display", "SF Pro Text", Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* Left Panel */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family: Roboto, system-ui, -apple-system, "SF Pro Display", "SF Pro Text", Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:90px; resize:vertical; }
+
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* Right Panel */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    .preview-stage{
+      max-width:1200px;
+      margin:0 auto;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      gap:20px;
+    }
+
+    /* Phone frame */
+    .phone{
+      width:390px;
+      height:780px;
+      border-radius:32px;
+      background:#0c0c0c;
+      border:1px solid #1d1d1d;
+      box-shadow:0 18px 45px rgba(0,0,0,.65);
+      padding:14px;
+      position:relative;
+    }
+    .screen{
+      width:100%;
+      height:100%;
+      border-radius:24px;
+      overflow:hidden;
+      background:var(--ios-bg);
+      position:relative;
+      display:flex;
+      flex-direction:column;
+    }
+
+    /* iOS Header */
+    .ios-header{
+      height:68px;
+      background:var(--ios-header);
+      border-bottom:1px solid var(--ios-sep);
+      display:flex;
+      align-items:center;
+      padding:0 12px;
+      gap:10px;
+    }
+    .ios-back{
+      display:flex;
+      align-items:center;
+      gap:6px;
+      color:var(--ios-blueText);
+      font-weight:500;
+      font-size:15px;
+      user-select:none;
+    }
+    .ios-back i{
+      font-size:16px;
+      margin-top:1px;
+    }
+
+    .ios-center{
+      flex:1;
+      min-width:0;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .ios-avatar{
+      width:34px;
+      height:34px;
+      border-radius:50%;
+      background:#2b2b2d;
+      border:1px solid rgba(255,255,255,.10);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:rgba(255,255,255,.7);
+      font-weight:700;
+      font-size:12px;
+      flex:0 0 auto;
+      user-select:none;
+    }
+    .ios-name{
+      color:var(--ios-name);
+      font-weight:600;
+      font-size:16px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .ios-right{
+      display:flex;
+      align-items:center;
+      gap:12px;
+      color:var(--ios-blueText);
+      opacity:.95;
+    }
+    .ios-right i{ font-size:18px; }
+
+    /* Chat Body */
+    .chat{
+      flex:1;
+      padding:12px 10px 14px 10px;
+      overflow:auto;
+      background:var(--ios-bg);
+    }
+
+    .time-stamp{
+      display:flex;
+      justify-content:center;
+      margin:8px 0 14px 0;
+      color:var(--ios-sub);
+      font-size:12px;
+      letter-spacing:.02em;
+    }
+
+    .msg{
+      display:flex;
+      margin:6px 0;
+      position:relative;
+    }
+    .msg.them{ justify-content:flex-start; }
+    .msg.me{ justify-content:flex-end; }
+
+    .bubble{
+      max-width:78%;
+      padding:9px 12px;
+      border-radius:18px;
+      position:relative;
+      font-size:14px;
+      line-height:1.35;
+      white-space:pre-wrap;
+      word-wrap:break-word;
+    }
+
+    /* Them bubble + tail bottom-left */
+    .msg.them .bubble{
+      background:var(--ios-gray);
+      color:#ffffff;
+      border-bottom-left-radius:6px;
+    }
+    .msg.them .bubble::after{
+      content:"";
+      position:absolute;
+      left:-6px;
+      bottom:6px;
+      width:12px;
+      height:12px;
+      background:var(--ios-gray);
+      transform:rotate(45deg);
+      border-bottom-left-radius:3px;
+    }
+
+    /* Me bubble + tail bottom-right */
+    .msg.me .bubble{
+      background:var(--ios-blue);
+      color:#ffffff;
+      border-bottom-right-radius:6px;
+    }
+    .msg.me .bubble::after{
+      content:"";
+      position:absolute;
+      right:-6px;
+      bottom:6px;
+      width:12px;
+      height:12px;
+      background:var(--ios-blue);
+      transform:rotate(45deg);
+      border-bottom-right-radius:3px;
+    }
+
+    /* Delivered under last blue bubble */
+    .delivered{
+      display:flex;
+      justify-content:flex-end;
+      padding-right:6px;
+      margin-top:2px;
+      color:rgba(255,255,255,.55);
+      font-size:11px;
+      letter-spacing:.01em;
+    }
+    .delivered.hidden{ display:none; }
+
+    /* Composer (visual only) */
+    .composer{
+      height:64px;
+      border-top:1px solid var(--ios-sep);
+      background:#0a0a0b;
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:10px;
+    }
+    .composer .plus{
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      border:1px solid rgba(255,255,255,.12);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:rgba(255,255,255,.75);
+      font-size:14px;
+    }
+    .composer .field{
+      flex:1;
+      height:44px;
+      border-radius:22px;
+      border:1px solid rgba(255,255,255,.10);
+      background:#111112;
+      display:flex;
+      align-items:center;
+      padding:0 12px;
+      color:rgba(255,255,255,.55);
+      font-size:14px;
+    }
+    .composer .mic{
+      width:28px;
+      height:28px;
+      border-radius:50%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:rgba(255,255,255,.75);
+      border:1px solid rgba(255,255,255,.12);
+      font-size:13px;
+    }
+
+    /* Responsive */
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .preview-stage{ justify-content:flex-start; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .chat::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .chat::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .chat::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-comment-sms"></i> Cyber &amp; Telecom — iMessage</h2>
+
+      <div class="cc-card">
+        <label class="label" for="contactName">Contact Name</label>
+        <input id="contactName" class="input" type="text" value="Ethan" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="chatTime">Time (top timestamp)</label>
+        <input id="chatTime" class="input" type="text" value="Today 9:41 PM" />
+
+        <p class="tiny">Timestamp appears centered above the conversation.</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label">Message Builder</label>
+
+        <div class="row">
+          <div>
+            <label class="label" for="type">Type</label>
+            <select id="type" class="select">
+              <option value="message" selected>Message</option>
+              <option value="timestamp">Timestamp</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="sender">Sender</label>
+            <select id="sender" class="select">
+              <option value="me">Me (Blue)</option>
+              <option value="them">Them (Gray)</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="messageText">Content</label>
+        <textarea id="messageText" class="textarea" placeholder="Type a message or timestamp..."></textarea>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add</button>
+          <button id="clearBtn" class="ghost"><i class="fa-solid fa-trash" style="margin-right:8px"></i>Clear</button>
+        </div>
+
+        <p class="tiny">
+          The last blue bubble automatically shows <b>Delivered</b> underneath it.
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <p class="tiny">Exports the iMessage phone screen as evidence.</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <div class="preview-stage">
+        <section id="captureArea" class="phone" aria-label="iMessage Preview">
+          <div class="screen">
+            <div class="ios-header">
+              <div class="ios-back" title="Back">
+                <i class="fa-solid fa-chevron-left"></i>
+                <span>Messages</span>
+              </div>
+
+              <div class="ios-center">
+                <div id="avatar" class="ios-avatar">E</div>
+                <div id="nameOut" class="ios-name">Ethan</div>
+              </div>
+
+              <div class="ios-right" aria-label="Actions">
+                <i class="fa-solid fa-video" title="FaceTime"></i>
+                <i class="fa-solid fa-circle-info" title="Info"></i>
+              </div>
+            </div>
+
+            <div id="chat" class="chat">
+              <div id="topTime" class="time-stamp">Today 9:41 PM</div>
+
+              <!-- starter messages -->
+              <div class="msg them"><div class="bubble">Where are you?</div></div>
+              <div class="msg me"><div class="bubble">On my way.</div></div>
+              <div class="delivered" id="deliveredLine">Delivered</div>
+            </div>
+
+            <div class="composer" aria-hidden="true">
+              <div class="plus"><i class="fa-solid fa-plus"></i></div>
+              <div class="field">iMessage</div>
+              <div class="mic"><i class="fa-solid fa-microphone"></i></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    // --------- Header bindings ----------
+    const contactName = document.getElementById('contactName');
+    const chatTime = document.getElementById('chatTime');
+    const nameOut = document.getElementById('nameOut');
+    const avatar = document.getElementById('avatar');
+    const topTime = document.getElementById('topTime');
+
+    function initials(name){
+      const s = (name || "").trim();
+      if(!s) return "?";
+      return s[0].toUpperCase();
+    }
+
+    function syncHeader(){
+      const n = contactName.value || "Unknown";
+      nameOut.textContent = n;
+      avatar.textContent = initials(n);
+      topTime.textContent = chatTime.value || "";
+    }
+
+    contactName.addEventListener('input', syncHeader);
+    chatTime.addEventListener('input', syncHeader);
+    syncHeader();
+
+    // --------- Message builder ----------
+    const typeSel = document.getElementById('type');
+    const senderSel = document.getElementById('sender');
+    const messageText = document.getElementById('messageText');
+    const addBtn = document.getElementById('addBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const chat = document.getElementById('chat');
+    const deliveredLine = document.getElementById('deliveredLine');
+
+    function updateDeliveredPlacement(){
+      // Show "Delivered" under the LAST blue message bubble (if any)
+      const meMsgs = Array.from(chat.querySelectorAll('.msg.me'));
+      if(meMsgs.length === 0){
+        deliveredLine.classList.add('hidden');
+        return;
+      }
+      deliveredLine.classList.remove('hidden');
+      const lastMe = meMsgs[meMsgs.length - 1];
+      lastMe.insertAdjacentElement('afterend', deliveredLine);
+    }
+
+    function addItem(){
+      const text = (messageText.value || "").trim();
+      if(!text) return;
+
+      if(typeSel.value === 'timestamp'){
+        const ts = document.createElement('div');
+        ts.className = 'time-stamp';
+        ts.textContent = text;
+        chat.appendChild(ts);
+      }else{
+        const wrap = document.createElement('div');
+        wrap.className = 'msg ' + (senderSel.value === 'them' ? 'them' : 'me');
+
+        const bubble = document.createElement('div');
+        bubble.className = 'bubble';
+        bubble.textContent = text;
+
+        wrap.appendChild(bubble);
+        chat.appendChild(wrap);
+
+        updateDeliveredPlacement();
+      }
+
+      chat.scrollTop = chat.scrollHeight;
+      messageText.value = "";
+      messageText.focus();
+    }
+
+    addBtn.addEventListener('click', addItem);
+    messageText.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        addItem();
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      chat.innerHTML = '';
+      if(topTime.textContent.trim()){
+        const top = document.createElement('div');
+        top.id = 'topTime';
+        top.className = 'time-stamp';
+        top.textContent = chatTime.value || '';
+        chat.appendChild(top);
+        // keep reference updated
+        window._topTimeRef = top;
+      }
+      // Re-add delivered line (hidden)
+      deliveredLine.classList.add('hidden');
+      chat.appendChild(deliveredLine);
+    });
+
+    // Keep topTime reference resilient if cleared
+    // (If user clears, we rebuild. Otherwise, keep as-is.)
+    // We'll also keep delivered placement correct for starter messages.
+    updateDeliveredPlacement();
+
+    // --------- Export ----------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function stamp(){
+      const d = new Date();
+      const p = (n) => String(n).padStart(2,'0');
+      return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0a0a0a",
+        scale,
+        useCORS: true
+      });
+
+      const base = `imessage_thread_${stamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: 'p', unit: 'pt', format: 'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 28;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

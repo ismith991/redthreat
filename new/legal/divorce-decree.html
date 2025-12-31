@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Divorce Decree</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Playfair+Display:wght@500;600;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111;
+      --soft:#f6f6f6;
+      --rule:#cfcfcf;
+
+      --gold1:#d9b24c;
+      --gold2:#b8892a;
+      --gold3:#f1d98a;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:150px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4 Paper with Double Border */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:26px;
+      position:relative;
+      overflow:hidden;
+      font-family:"Playfair Display","Times New Roman", Times, serif; /* high-end legal look */
+    }
+
+    .doubleBorder{
+      position:absolute;
+      inset:18px;
+      border:2px solid #111;
+      pointer-events:none;
+    }
+    .doubleBorder:after{
+      content:"";
+      position:absolute;
+      inset:8px;
+      border:1px solid #111;
+      opacity:.85;
+    }
+
+    .wm{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      user-select:none;
+      z-index:0;
+      opacity:.04;
+      font-weight:900;
+      letter-spacing:.22em;
+      font-size:120px;
+      transform:rotate(-24deg);
+      color:#000;
+      white-space:nowrap;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+    }
+
+    .doc{
+      position:relative;
+      z-index:1;
+      padding:20px 22px;
+    }
+
+    .header{
+      text-align:center;
+      margin-top:6px;
+    }
+    .court{
+      font-weight:700;
+      font-size:18px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin:0;
+    }
+    .subCourt{
+      margin-top:8px;
+      font-size:12px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#222;
+    }
+
+    .rule{
+      margin:16px 0 14px;
+      border-top:2px solid #111;
+    }
+
+    .docTitle{
+      text-align:center;
+      font-weight:800;
+      font-size:20px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin:10px 0 6px;
+    }
+    .docSub{
+      text-align:center;
+      font-size:12px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#222;
+      margin:0 0 16px;
+    }
+
+    .caseBox{
+      border:1px solid var(--rule);
+      background:#fcfcfc;
+      padding:14px 14px;
+      margin-bottom:14px;
+    }
+    .caseGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      font-size:14px;
+      color:#111;
+      font-family:"Times New Roman", Times, serif;
+    }
+    .caseGrid .k{
+      display:block;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:#222;
+      margin-bottom:6px;
+      font-family:"Courier Prime", monospace;
+    }
+    .caseGrid .v{
+      font-weight:700;
+      word-break:break-word;
+    }
+    .vs{
+      grid-column:1 / -1;
+      margin-top:6px;
+      padding-top:10px;
+      border-top:1px dashed rgba(0,0,0,.25);
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#222;
+    }
+
+    .order{
+      font-family:"Times New Roman", Times, serif;
+      font-size:14.5px;
+      line-height:1.6;
+      color:#111;
+      margin-top:6px;
+    }
+
+    .orderLead{
+      font-weight:800;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      margin:0 0 10px;
+      font-family:"Playfair Display","Times New Roman", Times, serif;
+    }
+
+    .terms{
+      margin-top:10px;
+      border:1px solid var(--rule);
+      background:#fff;
+      padding:12px 14px;
+      white-space:pre-wrap;
+      min-height:260px;
+      font-family:"Times New Roman", Times, serif;
+      font-size:14.5px;
+      line-height:1.6;
+    }
+
+    .footer{
+      margin-top:18px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:18px;
+      font-family:"Times New Roman", Times, serif;
+      color:#111;
+    }
+    .judgeBlock{
+      flex:1;
+      text-align:left;
+      font-size:13.5px;
+    }
+    .sigLine{
+      margin-top:8px;
+      border-bottom:1px solid #111;
+      height:24px;
+      width:360px;
+      max-width:100%;
+    }
+    .judgeName{
+      margin-top:10px;
+      font-weight:700;
+    }
+    .judgeTitle{
+      margin-top:6px;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:#222;
+      font-family:"Courier Prime", monospace;
+    }
+
+    /* Gold Seal (CSS) */
+    .seal{
+      width:130px;
+      height:130px;
+      border-radius:50%;
+      position:relative;
+      flex:0 0 auto;
+      background:
+        radial-gradient(circle at 30% 25%, rgba(255,255,255,.55), transparent 35%),
+        radial-gradient(circle at 70% 75%, rgba(0,0,0,.18), transparent 42%),
+        linear-gradient(135deg, var(--gold3), var(--gold2));
+      border:2px solid rgba(0,0,0,.35);
+      box-shadow:0 10px 18px rgba(0,0,0,.18);
+    }
+    .seal:before{
+      content:"";
+      position:absolute;
+      inset:10px;
+      border-radius:50%;
+      border:2px dashed rgba(0,0,0,.35);
+      opacity:.7;
+    }
+    .seal:after{
+      content:"OFFICIAL • SEAL •";
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.16em;
+      font-size:11px;
+      color:rgba(0,0,0,.55);
+      text-transform:uppercase;
+      transform:rotate(-10deg);
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .footer{ flex-direction:column; align-items:flex-start; }
+      .seal{ align-self:flex-end; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-scale-balanced"></i> Legal & Court — Divorce Decree</h2>
+
+      <div class="cc-card">
+        <label class="label" for="countyIn">County</label>
+        <input id="countyIn" class="input" type="text" value="MULTNOMAH COUNTY" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="petitionerIn">Petitioner Name</label>
+            <input id="petitionerIn" class="input" type="text" value="JORDAN VALE" />
+          </div>
+          <div>
+            <label class="label" for="respondentIn">Respondent Name</label>
+            <input id="respondentIn" class="input" type="text" value="CASEY VALE" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="petRoleIn">Petitioner Role</label>
+            <select id="petRoleIn" class="select">
+              <option selected>Husband</option>
+              <option>Wife</option>
+              <option>Spouse</option>
+              <option>Partner</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="resRoleIn">Respondent Role</label>
+            <select id="resRoleIn" class="select">
+              <option>Husband</option>
+              <option selected>Wife</option>
+              <option>Spouse</option>
+              <option>Partner</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="termsIn">Terms of Divorce (editable order text)</label>
+        <textarea id="termsIn" class="textarea">1) Marital Status: The marriage is dissolved, effective immediately upon entry of judgment.
+
+2) Custody: Sole custody is awarded to the Petitioner. Respondent shall have supervised visitation as agreed by both parties.
+
+3) Assets: The house located at 18 Hawthorne Row is awarded to the Petitioner. Respondent shall retain ownership of the 2022 sedan currently registered in their name.
+
+4) Debts: Each party shall be responsible for debts in their own name unless otherwise listed herein.
+
+5) Other: Each party is restrained from harassment and unwanted contact pending further order.</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="judgeIn">Judge Name</label>
+            <input id="judgeIn" class="input" type="text" value="HON. E. WINSLOW" />
+          </div>
+          <div>
+            <label class="label" for="caseNoIn">Case Number (Optional)</label>
+            <input id="caseNoIn" class="input" type="text" value="FD-25-44108" />
+          </div>
+        </div>
+
+        <p class="tiny">Everything is flexible: names, roles, terms, and even case formatting for different stories.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Divorce decree preview">
+        <div class="wm">FINAL JUDGMENT</div>
+        <div class="doubleBorder" aria-hidden="true"></div>
+
+        <div class="doc">
+          <div class="header">
+            <h1 class="court" id="courtOut">FAMILY COURT OF MULTNOMAH COUNTY</h1>
+            <div class="subCourt" id="caseNoOutWrap">Case No. <span id="caseNoOut">—</span></div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="docTitle">FINAL JUDGMENT OF DISSOLUTION OF MARRIAGE</div>
+          <div class="docSub">Order of the Court • Entered as Judgment</div>
+
+          <div class="caseBox">
+            <div class="caseGrid">
+              <div>
+                <span class="k">Petitioner</span>
+                <div class="v"><span id="petitionerOut">—</span> (<span id="petRoleOut">—</span>)</div>
+              </div>
+              <div>
+                <span class="k">Respondent</span>
+                <div class="v"><span id="respondentOut">—</span> (<span id="resRoleOut">—</span>)</div>
+              </div>
+              <div class="vs">v. (Respondent)</div>
+            </div>
+          </div>
+
+          <div class="order">
+            <p class="orderLead">IT IS HEREBY ORDERED, ADJUDGED, AND DECREED:</p>
+
+            <div class="terms" id="termsOut"></div>
+          </div>
+
+          <div class="footer">
+            <div class="judgeBlock">
+              <div>So ordered by the Court:</div>
+              <div class="sigLine"></div>
+              <div class="judgeName" id="judgeOut">—</div>
+              <div class="judgeTitle">Judge of the Family Court</div>
+            </div>
+
+            <div class="seal" title="Official Seal (CSS)"></div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const countyIn = document.getElementById('countyIn');
+    const petitionerIn = document.getElementById('petitionerIn');
+    const respondentIn = document.getElementById('respondentIn');
+    const petRoleIn = document.getElementById('petRoleIn');
+    const resRoleIn = document.getElementById('resRoleIn');
+    const termsIn = document.getElementById('termsIn');
+    const judgeIn = document.getElementById('judgeIn');
+    const caseNoIn = document.getElementById('caseNoIn');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    const courtOut = document.getElementById('courtOut');
+    const petitionerOut = document.getElementById('petitionerOut');
+    const respondentOut = document.getElementById('respondentOut');
+    const petRoleOut = document.getElementById('petRoleOut');
+    const resRoleOut = document.getElementById('resRoleOut');
+    const termsOut = document.getElementById('termsOut');
+    const judgeOut = document.getElementById('judgeOut');
+    const caseNoOut = document.getElementById('caseNoOut');
+    const caseNoOutWrap = document.getElementById('caseNoOutWrap');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function build(){
+      const county = sanitize(countyIn.value) || "COUNTY";
+      courtOut.textContent = `FAMILY COURT OF ${county.toUpperCase()}`;
+
+      petitionerOut.textContent = sanitize(petitionerIn.value) || "—";
+      respondentOut.textContent = sanitize(respondentIn.value) || "—";
+      petRoleOut.textContent = sanitize(petRoleIn.value) || "—";
+      resRoleOut.textContent = sanitize(resRoleIn.value) || "—";
+
+      const t = sanitize(termsIn.value);
+      termsOut.textContent = t || "—";
+
+      judgeOut.textContent = sanitize(judgeIn.value) || "—";
+
+      const cn = sanitize(caseNoIn.value);
+      if(cn){
+        caseNoOut.textContent = cn;
+        caseNoOutWrap.style.visibility = "visible";
+      }else{
+        caseNoOut.textContent = "—";
+        caseNoOutWrap.style.visibility = "hidden";
+      }
+    }
+
+    [countyIn, petitionerIn, respondentIn, petRoleIn, resRoleIn, termsIn, judgeIn, caseNoIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    function getState(){
+      return {
+        county: countyIn.value,
+        petitioner: petitionerIn.value,
+        respondent: respondentIn.value,
+        petitionerRole: petRoleIn.value,
+        respondentRole: resRoleIn.value,
+        terms: termsIn.value,
+        judge: judgeIn.value,
+        caseNo: caseNoIn.value
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      countyIn.value = s.county ?? countyIn.value;
+      petitionerIn.value = s.petitioner ?? petitionerIn.value;
+      respondentIn.value = s.respondent ?? respondentIn.value;
+      petRoleIn.value = s.petitionerRole ?? petRoleIn.value;
+      resRoleIn.value = s.respondentRole ?? resRoleIn.value;
+      termsIn.value = s.terms ?? termsIn.value;
+      judgeIn.value = s.judge ?? judgeIn.value;
+      caseNoIn.value = s.caseNo ?? caseNoIn.value;
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `divorce_decree_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

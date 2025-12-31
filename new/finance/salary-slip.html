@@ -1,0 +1,1010 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Salary Slip</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111;
+      --grid:#d9d9d9;
+      --head:#f3f5f7;
+      --zebra:#fbfbfb;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4 */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      margin:0 auto;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:26px 26px 30px;
+      position:relative;
+      overflow:hidden;
+    }
+
+    /* Watermark */
+    .watermark{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      z-index:0;
+      transform: rotate(-18deg);
+      opacity:.10; /* requirement */
+      font-weight:900;
+      letter-spacing:.22em;
+      font-size:140px;
+      color:#000;
+      user-select:none;
+      white-space:nowrap;
+    }
+
+    .doc{
+      position:relative;
+      z-index:1;
+    }
+
+    .header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:18px;
+      border-bottom:2px solid #111;
+      padding-bottom:10px;
+      margin-bottom:12px;
+    }
+    .hLeft{
+      min-width:0;
+    }
+    .company{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:14px;
+      font-family:"Courier Prime", monospace;
+    }
+    .sub{
+      margin-top:6px;
+      color:#333;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .hRight{
+      font-size:12px;
+      text-align:right;
+      line-height:1.5;
+    }
+    .hRight .k{ color:#333; }
+    .hRight .v{ font-weight:800; }
+
+    /* Dense grid */
+    .gridBlock{
+      border:1px solid var(--grid);
+      margin-top:12px;
+    }
+
+    .gridTitle{
+      background:var(--head);
+      border-bottom:1px solid var(--grid);
+      padding:8px 10px;
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      font-family:"Courier Prime", monospace;
+    }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      font-size:12px;
+    }
+    th, td{
+      border:1px solid var(--grid);
+      padding:7px 8px;
+      vertical-align:top;
+    }
+    th{
+      background:var(--head);
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+    }
+    .num{ text-align:right; white-space:nowrap; }
+    .center{ text-align:center; }
+
+    .twoCol{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      margin-top:12px;
+    }
+
+    .summary{
+      margin-top:12px;
+      border:1px solid var(--grid);
+    }
+    .summaryRow{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding:9px 10px;
+      border-top:1px solid var(--grid);
+      font-size:12px;
+    }
+    .summaryRow:first-child{ border-top:none; background:var(--head); font-weight:900; letter-spacing:.10em; text-transform:uppercase; font-family:"Courier Prime", monospace; font-size:11px; }
+    .summaryRow .k{ color:#333; }
+    .summaryRow .v{ font-weight:900; }
+
+    .footer{
+      margin-top:14px;
+      color:#444;
+      font-size:11px;
+      border-top:1px solid var(--grid);
+      padding-top:10px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+    }
+
+    @media (max-width: 980px){
+      .twoCol{ grid-template-columns: 1fr; }
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-money-check-dollar"></i> Financial Intel — Salary Slip</h2>
+
+      <div class="cc-card">
+        <label class="label" for="companyIn">Company Name</label>
+        <input id="companyIn" class="input" type="text" value="COMPANY NAME INC." />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="empNameIn">Employee Name</label>
+            <input id="empNameIn" class="input" type="text" value="EMPLOYEE NAME" />
+          </div>
+          <div>
+            <label class="label" for="empIdIn">Employee ID</label>
+            <input id="empIdIn" class="input" type="text" value="E-000172" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="payPeriodIn">Pay Period</label>
+            <input id="payPeriodIn" class="input" type="text" value="2025-12-01 to 2025-12-15" />
+          </div>
+          <div>
+            <label class="label" for="payDateIn">Pay Date</label>
+            <input id="payDateIn" class="input" type="text" value="2025-12-20" />
+          </div>
+        </div>
+
+        <p class="tiny">Everything is editable. Earnings + taxes can be calculated automatically or overwritten in advanced mode below.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="regRateIn">Regular Rate</label>
+            <input id="regRateIn" class="input" type="text" value="28.50" />
+          </div>
+          <div>
+            <label class="label" for="regHoursIn">Regular Hours</label>
+            <input id="regHoursIn" class="input" type="text" value="80" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="otRateIn">Overtime Rate</label>
+            <input id="otRateIn" class="input" type="text" value="42.75" />
+          </div>
+          <div>
+            <label class="label" for="otHoursIn">Overtime Hours</label>
+            <input id="otHoursIn" class="input" type="text" value="6" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="fedTaxIn">Federal Tax %</label>
+            <input id="fedTaxIn" class="input" type="text" value="12" />
+          </div>
+          <div>
+            <label class="label" for="ssTaxIn">Social Security %</label>
+            <input id="ssTaxIn" class="input" type="text" value="6.2" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="medTaxIn">Medicare %</label>
+            <input id="medTaxIn" class="input" type="text" value="1.45" />
+          </div>
+          <div>
+            <label class="label" for="ytdMode">YTD Mode</label>
+            <select id="ytdMode" class="select">
+              <option value="auto" selected>Auto (est.)</option>
+              <option value="manual">Manual</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="randEmp" class="btnGhost">
+            <i class="fa-solid fa-dice" style="margin-right:8px;"></i>
+            Randomize IDs
+          </button>
+          <button id="resetYtd" class="btnGhost">
+            <i class="fa-solid fa-rotate-left" style="margin-right:8px;"></i>
+            Reset YTD
+          </button>
+        </div>
+
+        <p class="tiny">YTD Auto = current pay × (randomized pay periods). Manual lets you type exact YTD values.</p>
+      </div>
+
+      <div class="cc-card" id="manualYtdCard" style="display:none;">
+        <div class="row">
+          <div>
+            <label class="label" for="regYtdIn">Regular Pay YTD</label>
+            <input id="regYtdIn" class="input" type="text" value="0" />
+          </div>
+          <div>
+            <label class="label" for="otYtdIn">Overtime YTD</label>
+            <input id="otYtdIn" class="input" type="text" value="0" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="fedYtdIn">Federal Tax YTD</label>
+            <input id="fedYtdIn" class="input" type="text" value="0" />
+          </div>
+          <div>
+            <label class="label" for="ssYtdIn">SS Tax YTD</label>
+            <input id="ssYtdIn" class="input" type="text" value="0" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="medYtdIn">Medicare Tax YTD</label>
+        <input id="medYtdIn" class="input" type="text" value="0" />
+
+        <p class="tiny">Manual YTD gives full control for story continuity across multiple pay slips.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="wmTextIn">Watermark</label>
+            <input id="wmTextIn" class="input" type="text" value="COPY" />
+          </div>
+          <div>
+            <label class="label" for="wmOnIn">Watermark On</label>
+            <select id="wmOnIn" class="select">
+              <option value="on" selected>On</option>
+              <option value="off">Off</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+
+      <div class="cc-card">
+        <button id="exportJson" class="btnGhost">
+          <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+          Export JSON (Save Case)
+        </button>
+        <div style="height:10px"></div>
+        <button id="importJson" class="btnGhost">
+          <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+          Import JSON (Load Case)
+        </button>
+        <p class="tiny">Use JSON to keep consistency across stories and regenerate slips instantly.</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Salary slip preview">
+        <div class="watermark" id="wmOut">COPY</div>
+
+        <div class="doc">
+          <div class="header">
+            <div class="hLeft">
+              <div class="company" id="companyOut">COMPANY NAME INC.</div>
+              <div class="sub">Earnings Statement</div>
+            </div>
+            <div class="hRight">
+              <div><span class="k">Employee:</span> <span class="v" id="empNameOut">—</span></div>
+              <div><span class="k">Employee ID:</span> <span class="v" id="empIdOut">—</span></div>
+              <div><span class="k">Pay Period:</span> <span class="v" id="payPeriodOut">—</span></div>
+              <div><span class="k">Pay Date:</span> <span class="v" id="payDateOut">—</span></div>
+            </div>
+          </div>
+
+          <div class="twoCol">
+            <div class="gridBlock">
+              <div class="gridTitle">Earnings</div>
+              <table aria-label="Earnings table">
+                <thead>
+                  <tr>
+                    <th style="width:34%;">Type</th>
+                    <th class="num" style="width:16%;">Rate</th>
+                    <th class="num" style="width:16%;">Hours</th>
+                    <th class="num" style="width:17%;">Current</th>
+                    <th class="num" style="width:17%;">YTD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Regular Pay</td>
+                    <td class="num" id="regRateOut">—</td>
+                    <td class="num" id="regHoursOut">—</td>
+                    <td class="num" id="regCurOut">—</td>
+                    <td class="num" id="regYtdOut">—</td>
+                  </tr>
+                  <tr>
+                    <td>Overtime</td>
+                    <td class="num" id="otRateOut">—</td>
+                    <td class="num" id="otHoursOut">—</td>
+                    <td class="num" id="otCurOut">—</td>
+                    <td class="num" id="otYtdOut">—</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Earnings</strong></td>
+                    <td class="num">—</td>
+                    <td class="num">—</td>
+                    <td class="num" id="earnCurOut"><strong>—</strong></td>
+                    <td class="num" id="earnYtdOut"><strong>—</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+
+            <div class="gridBlock">
+              <div class="gridTitle">Taxes (Withholding)</div>
+              <table aria-label="Taxes table">
+                <thead>
+                  <tr>
+                    <th style="width:50%;">Type</th>
+                    <th class="num" style="width:25%;">Current</th>
+                    <th class="num" style="width:25%;">YTD</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td>Federal Income Tax</td>
+                    <td class="num" id="fedCurOut">—</td>
+                    <td class="num" id="fedYtdOut">—</td>
+                  </tr>
+                  <tr>
+                    <td>Social Security</td>
+                    <td class="num" id="ssCurOut">—</td>
+                    <td class="num" id="ssYtdOut">—</td>
+                  </tr>
+                  <tr>
+                    <td>Medicare</td>
+                    <td class="num" id="medCurOut">—</td>
+                    <td class="num" id="medYtdOut">—</td>
+                  </tr>
+                  <tr>
+                    <td><strong>Total Taxes</strong></td>
+                    <td class="num" id="taxCurOut"><strong>—</strong></td>
+                    <td class="num" id="taxYtdOut"><strong>—</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div class="summary" aria-label="Net pay summary">
+            <div class="summaryRow">
+              <div>Summary</div><div></div>
+            </div>
+            <div class="summaryRow">
+              <div class="k">Gross Pay (Current)</div>
+              <div class="v" id="grossOut">$0.00</div>
+            </div>
+            <div class="summaryRow">
+              <div class="k">Taxes (Current)</div>
+              <div class="v" id="taxesOut">$0.00</div>
+            </div>
+            <div class="summaryRow">
+              <div class="k"><strong>Net Pay (Current)</strong></div>
+              <div class="v" id="netOut"><strong>$0.00</strong></div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <div>Statement ID: <span id="stmtIdOut">—</span></div>
+            <div>Generated for documentation use</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const companyIn = document.getElementById('companyIn');
+    const empNameIn = document.getElementById('empNameIn');
+    const empIdIn = document.getElementById('empIdIn');
+    const payPeriodIn = document.getElementById('payPeriodIn');
+    const payDateIn = document.getElementById('payDateIn');
+
+    const regRateIn = document.getElementById('regRateIn');
+    const regHoursIn = document.getElementById('regHoursIn');
+    const otRateIn = document.getElementById('otRateIn');
+    const otHoursIn = document.getElementById('otHoursIn');
+
+    const fedTaxIn = document.getElementById('fedTaxIn');
+    const ssTaxIn = document.getElementById('ssTaxIn');
+    const medTaxIn = document.getElementById('medTaxIn');
+
+    const ytdMode = document.getElementById('ytdMode');
+    const manualYtdCard = document.getElementById('manualYtdCard');
+
+    const regYtdIn = document.getElementById('regYtdIn');
+    const otYtdIn = document.getElementById('otYtdIn');
+    const fedYtdIn = document.getElementById('fedYtdIn');
+    const ssYtdIn = document.getElementById('ssYtdIn');
+    const medYtdIn = document.getElementById('medYtdIn');
+
+    const wmTextIn = document.getElementById('wmTextIn');
+    const wmOnIn = document.getElementById('wmOnIn');
+
+    const randEmp = document.getElementById('randEmp');
+    const resetYtd = document.getElementById('resetYtd');
+
+    const exportJson = document.getElementById('exportJson');
+    const importJson = document.getElementById('importJson');
+
+    // Outputs
+    const companyOut = document.getElementById('companyOut');
+    const empNameOut = document.getElementById('empNameOut');
+    const empIdOut = document.getElementById('empIdOut');
+    const payPeriodOut = document.getElementById('payPeriodOut');
+    const payDateOut = document.getElementById('payDateOut');
+
+    const regRateOut = document.getElementById('regRateOut');
+    const regHoursOut = document.getElementById('regHoursOut');
+    const regCurOut = document.getElementById('regCurOut');
+    const regYtdOut = document.getElementById('regYtdOut');
+
+    const otRateOut = document.getElementById('otRateOut');
+    const otHoursOut = document.getElementById('otHoursOut');
+    const otCurOut = document.getElementById('otCurOut');
+    const otYtdOut = document.getElementById('otYtdOut');
+
+    const earnCurOut = document.getElementById('earnCurOut');
+    const earnYtdOut = document.getElementById('earnYtdOut');
+
+    const fedCurOut = document.getElementById('fedCurOut');
+    const fedYtdOut = document.getElementById('fedYtdOut');
+    const ssCurOut = document.getElementById('ssCurOut');
+    const ssYtdOut = document.getElementById('ssYtdOut');
+    const medCurOut = document.getElementById('medCurOut');
+    const medYtdOut = document.getElementById('medYtdOut');
+
+    const taxCurOut = document.getElementById('taxCurOut');
+    const taxYtdOut = document.getElementById('taxYtdOut');
+
+    const grossOut = document.getElementById('grossOut');
+    const taxesOut = document.getElementById('taxesOut');
+    const netOut = document.getElementById('netOut');
+
+    const stmtIdOut = document.getElementById('stmtIdOut');
+
+    const wmOut = document.getElementById('wmOut');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+    function parseNum(s){
+      const n = Number(String(s).replace(/[$,]/g,'').trim());
+      return Number.isFinite(n) ? n : 0;
+    }
+    function money(n){
+      const v = Number(n);
+      return "$" + v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+    function clamp(n, a, b){ return Math.max(a, Math.min(b, n)); }
+
+    // Auto YTD factor
+    let ytdPeriods = Math.floor(Math.random()*18) + 2; // 2..19 (change with Reset YTD)
+
+    function makeStmtId(){
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let out = "STMT-";
+      for(let i=0;i<8;i++) out += chars[Math.floor(Math.random()*chars.length)];
+      return out;
+    }
+
+    function build(){
+      // Header
+      companyOut.textContent = sanitize(companyIn.value) || "—";
+      empNameOut.textContent = sanitize(empNameIn.value) || "—";
+      empIdOut.textContent = sanitize(empIdIn.value) || "—";
+      payPeriodOut.textContent = sanitize(payPeriodIn.value) || "—";
+      payDateOut.textContent = sanitize(payDateIn.value) || "—";
+
+      // Watermark
+      wmOut.textContent = sanitize(wmTextIn.value) || "COPY";
+      wmOut.style.display = (wmOnIn.value === "off") ? "none" : "flex";
+
+      // Earnings (current)
+      const rr = parseNum(regRateIn.value);
+      const rh = parseNum(regHoursIn.value);
+      const orr = parseNum(otRateIn.value);
+      const oh = parseNum(otHoursIn.value);
+
+      const regCur = rr * rh;
+      const otCur = orr * oh;
+      const earnCur = regCur + otCur;
+
+      regRateOut.textContent = money(rr).replace("$",""); // grid-like
+      regHoursOut.textContent = rh.toFixed(2);
+      regCurOut.textContent = money(regCur);
+
+      otRateOut.textContent = money(orr).replace("$","");
+      otHoursOut.textContent = oh.toFixed(2);
+      otCurOut.textContent = money(otCur);
+
+      earnCurOut.textContent = money(earnCur);
+
+      // Taxes (current)
+      const fedP = clamp(parseNum(fedTaxIn.value), 0, 99.99) / 100;
+      const ssP  = clamp(parseNum(ssTaxIn.value), 0, 99.99) / 100;
+      const medP = clamp(parseNum(medTaxIn.value), 0, 99.99) / 100;
+
+      const fedCur = earnCur * fedP;
+      const ssCur  = earnCur * ssP;
+      const medCur = earnCur * medP;
+
+      const taxCur = fedCur + ssCur + medCur;
+
+      fedCurOut.textContent = money(fedCur);
+      ssCurOut.textContent = money(ssCur);
+      medCurOut.textContent = money(medCur);
+      taxCurOut.textContent = money(taxCur);
+
+      // YTD
+      const mode = ytdMode.value;
+      if(mode === "manual"){
+        manualYtdCard.style.display = "block";
+
+        const regY = parseNum(regYtdIn.value);
+        const otY  = parseNum(otYtdIn.value);
+
+        const fedY = parseNum(fedYtdIn.value);
+        const ssY  = parseNum(ssYtdIn.value);
+        const medY = parseNum(medYtdIn.value);
+
+        const earnY = regY + otY;
+        const taxY  = fedY + ssY + medY;
+
+        regYtdOut.textContent = money(regY);
+        otYtdOut.textContent = money(otY);
+        earnYtdOut.textContent = money(earnY);
+
+        fedYtdOut.textContent = money(fedY);
+        ssYtdOut.textContent  = money(ssY);
+        medYtdOut.textContent = money(medY);
+        taxYtdOut.textContent = money(taxY);
+      } else {
+        manualYtdCard.style.display = "none";
+
+        // Auto: current x periods, with small jitter so it's not perfectly clean
+        const jitter = (x) => x * (1 + (Math.random()*0.03 - 0.015)); // +/-1.5%
+        const regY = jitter(regCur * ytdPeriods);
+        const otY  = jitter(otCur  * ytdPeriods);
+        const earnY = regY + otY;
+
+        const fedY = jitter(fedCur * ytdPeriods);
+        const ssY  = jitter(ssCur  * ytdPeriods);
+        const medY = jitter(medCur * ytdPeriods);
+        const taxY = fedY + ssY + medY;
+
+        regYtdOut.textContent = money(regY);
+        otYtdOut.textContent = money(otY);
+        earnYtdOut.textContent = money(earnY);
+
+        fedYtdOut.textContent = money(fedY);
+        ssYtdOut.textContent  = money(ssY);
+        medYtdOut.textContent = money(medY);
+        taxYtdOut.textContent = money(taxY);
+      }
+
+      // Summary
+      grossOut.textContent = money(earnCur);
+      taxesOut.textContent = money(taxCur);
+      netOut.textContent = money(earnCur - taxCur);
+    }
+
+    // Randomize IDs
+    randEmp.addEventListener('click', ()=>{
+      const n = Math.floor(Math.random()*900000) + 100000;
+      empIdIn.value = "E-" + n;
+      stmtIdOut.textContent = makeStmtId();
+      build();
+    });
+
+    // Reset YTD factor
+    resetYtd.addEventListener('click', ()=>{
+      ytdPeriods = Math.floor(Math.random()*18) + 2;
+      build();
+    });
+
+    // YTD mode toggle
+    ytdMode.addEventListener('change', build);
+
+    // Live update
+    [
+      companyIn, empNameIn, empIdIn, payPeriodIn, payDateIn,
+      regRateIn, regHoursIn, otRateIn, otHoursIn,
+      fedTaxIn, ssTaxIn, medTaxIn,
+      regYtdIn, otYtdIn, fedYtdIn, ssYtdIn, medYtdIn,
+      wmTextIn, wmOnIn
+    ].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    // JSON
+    function getState(){
+      return {
+        company: companyIn.value,
+        empName: empNameIn.value,
+        empId: empIdIn.value,
+        payPeriod: payPeriodIn.value,
+        payDate: payDateIn.value,
+        regRate: regRateIn.value,
+        regHours: regHoursIn.value,
+        otRate: otRateIn.value,
+        otHours: otHoursIn.value,
+        fedTax: fedTaxIn.value,
+        ssTax: ssTaxIn.value,
+        medTax: medTaxIn.value,
+        ytdMode: ytdMode.value,
+        regYtd: regYtdIn.value,
+        otYtd: otYtdIn.value,
+        fedYtd: fedYtdIn.value,
+        ssYtd: ssYtdIn.value,
+        medYtd: medYtdIn.value,
+        wmText: wmTextIn.value,
+        wmOn: wmOnIn.value,
+        ytdPeriods,
+        stmtId: stmtIdOut.textContent
+      };
+    }
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      companyIn.value = s.company ?? companyIn.value;
+      empNameIn.value = s.empName ?? empNameIn.value;
+      empIdIn.value = s.empId ?? empIdIn.value;
+      payPeriodIn.value = s.payPeriod ?? payPeriodIn.value;
+      payDateIn.value = s.payDate ?? payDateIn.value;
+
+      regRateIn.value = s.regRate ?? regRateIn.value;
+      regHoursIn.value = s.regHours ?? regHoursIn.value;
+      otRateIn.value = s.otRate ?? otRateIn.value;
+      otHoursIn.value = s.otHours ?? otHoursIn.value;
+
+      fedTaxIn.value = s.fedTax ?? fedTaxIn.value;
+      ssTaxIn.value = s.ssTax ?? ssTaxIn.value;
+      medTaxIn.value = s.medTax ?? medTaxIn.value;
+
+      ytdMode.value = s.ytdMode ?? ytdMode.value;
+
+      regYtdIn.value = s.regYtd ?? regYtdIn.value;
+      otYtdIn.value = s.otYtd ?? otYtdIn.value;
+      fedYtdIn.value = s.fedYtd ?? fedYtdIn.value;
+      ssYtdIn.value = s.ssYtd ?? ssYtdIn.value;
+      medYtdIn.value = s.medYtd ?? medYtdIn.value;
+
+      wmTextIn.value = s.wmText ?? wmTextIn.value;
+      wmOnIn.value = s.wmOn ?? wmOnIn.value;
+
+      if(Number.isFinite(s.ytdPeriods)) ytdPeriods = s.ytdPeriods;
+      stmtIdOut.textContent = s.stmtId ?? stmtIdOut.textContent;
+
+      build();
+    }
+
+    exportJson.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJson.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    stmtIdOut.textContent = makeStmtId();
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `salary_slip_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

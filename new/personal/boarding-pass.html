@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Boarding Pass</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --card:#f6f7fb;
+      --ink:#0f172a;
+      --soft:#e5e7eb;
+      --accent:#1e40af; /* subtle airline blue */
+      --accent2:#0ea5e9;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* Boarding Pass Card */
+    .stage{
+      width: 980px;
+      max-width: 100%;
+      padding: 14px;
+      display:flex;
+      justify-content:center;
+    }
+
+    .pass{
+      width: 920px;
+      max-width: 100%;
+      height: 280px;
+      border-radius:22px;
+      background:linear-gradient(180deg, #ffffff, var(--card));
+      color:var(--ink);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      overflow:hidden;
+      position:relative;
+      display:grid;
+      grid-template-columns: 1fr 250px;
+    }
+
+    .pass:before{
+      /* subtle top strip */
+      content:"";
+      position:absolute;
+      left:0; top:0; right:0;
+      height:10px;
+      background:linear-gradient(90deg, var(--accent), var(--accent2));
+      opacity:.95;
+      z-index:0;
+    }
+
+    .left{
+      padding:22px 20px 18px 22px;
+      position:relative;
+      z-index:1;
+      display:flex;
+      flex-direction:column;
+      gap:14px;
+    }
+
+    .right{
+      border-left:2px dashed rgba(15,23,42,.28);
+      padding:18px 16px;
+      position:relative;
+      z-index:1;
+      display:flex;
+      flex-direction:column;
+      justify-content:space-between;
+      gap:12px;
+      background:
+        radial-gradient(700px 260px at 40% 20%, rgba(30,64,175,.08), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.9), rgba(246,247,251,.85));
+    }
+
+    .topRow{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:12px;
+      padding-top:6px;
+    }
+
+    .airline{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+    .logo{
+      width:34px; height:34px;
+      border-radius:10px;
+      background:linear-gradient(135deg, var(--accent), var(--accent2));
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      box-shadow:0 10px 18px rgba(0,0,0,.12);
+      flex:0 0 auto;
+    }
+    .airlineName{
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      font-size:14px;
+      line-height:1.1;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      max-width:420px;
+    }
+    .ticketTag{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      border:1px solid rgba(15,23,42,.35);
+      padding:6px 10px;
+      border-radius:999px;
+      background:#fff;
+      color:#111;
+      white-space:nowrap;
+    }
+
+    .route{
+      display:grid;
+      grid-template-columns: 1fr 42px 1fr;
+      align-items:center;
+      gap:10px;
+      margin-top:2px;
+    }
+    .code{
+      font-size:56px;
+      font-weight:900;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      line-height:1;
+    }
+    .citySmall{
+      margin-top:4px;
+      color:rgba(15,23,42,.72);
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+    }
+    .arrow{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:22px;
+      color:rgba(15,23,42,.55);
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr 1fr 1fr;
+      gap:12px;
+      margin-top:2px;
+    }
+    .field{
+      border:1px solid rgba(15,23,42,.18);
+      background:rgba(255,255,255,.85);
+      border-radius:12px;
+      padding:10px 10px;
+      min-height:56px;
+    }
+    .k{
+      font-family:"Courier Prime", monospace;
+      font-size:10px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:rgba(15,23,42,.75);
+    }
+    .v{
+      margin-top:6px;
+      font-weight:900;
+      font-size:14px;
+      letter-spacing:.03em;
+      word-break:break-word;
+    }
+
+    .bigRow{
+      display:grid;
+      grid-template-columns: 2fr 1fr;
+      gap:12px;
+    }
+
+    /* Barcode */
+    .barcodeWrap{
+      border:1px solid rgba(15,23,42,.20);
+      border-radius:14px;
+      background:#fff;
+      padding:10px;
+    }
+    .barcode{
+      width:100%;
+      height:120px;
+      border-radius:10px;
+      background:
+        repeating-linear-gradient(
+          90deg,
+          #111 0px,
+          #111 2px,
+          #fff 2px,
+          #fff 4px,
+          #111 4px,
+          #111 5px,
+          #fff 5px,
+          #fff 8px
+        );
+      position:relative;
+      overflow:hidden;
+    }
+    .barcode:after{
+      /* subtle scan line */
+      content:"";
+      position:absolute;
+      left:-20%;
+      top:0;
+      width:40%;
+      height:100%;
+      background:linear-gradient(90deg, transparent, rgba(14,165,233,.18), transparent);
+      transform:skewX(-12deg);
+      opacity:.7;
+    }
+    .barcodeMeta{
+      margin-top:8px;
+      display:flex;
+      justify-content:space-between;
+      gap:10px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:#111;
+      opacity:.85;
+    }
+    .barcodeMeta span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+    /* Perforation circles (ticket tear) */
+    .tearDot{
+      position:absolute;
+      top:50%;
+      left:calc(100% - 250px);
+      transform:translate(-50%,-50%);
+      width:26px;height:26px;
+      border-radius:50%;
+      background:#0b0b0b; /* stage bg shows cutout */
+      box-shadow:
+        0 -86px 0 #0b0b0b,
+        0 86px 0 #0b0b0b;
+      z-index:2;
+      opacity:1;
+    }
+
+    @media (max-width: 980px){
+      .pass{
+        grid-template-columns: 1fr;
+        height:auto;
+      }
+      .right{
+        border-left:none;
+        border-top:2px dashed rgba(15,23,42,.28);
+      }
+      .tearDot{
+        left:50%;
+        top:calc(100% - 250px);
+        transform:translate(-50%,-50%) rotate(90deg);
+        display:none; /* keep clean on small screens */
+      }
+      .grid{ grid-template-columns: 1fr 1fr; }
+      .code{ font-size:46px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-plane-up"></i> Personal Effects — Boarding Pass</h2>
+
+      <div class="cc-card">
+        <label class="label" for="airlineIn">Airline Name</label>
+        <input id="airlineIn" class="input" type="text" value="SKYHIGH AIRLINES" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="passengerIn">Passenger Name</label>
+            <input id="passengerIn" class="input" type="text" value="MORGAN REYES" />
+          </div>
+          <div>
+            <label class="label" for="flightIn">Flight No</label>
+            <input id="flightIn" class="input" type="text" value="SH 418" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="fromCodeIn">From (City Code)</label>
+            <input id="fromCodeIn" class="input" type="text" value="PDX" />
+          </div>
+          <div>
+            <label class="label" for="toCodeIn">To (City Code)</label>
+            <input id="toCodeIn" class="input" type="text" value="LAX" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="fromCityIn">From (City Name)</label>
+            <input id="fromCityIn" class="input" type="text" value="Portland" />
+          </div>
+          <div>
+            <label class="label" for="toCityIn">To (City Name)</label>
+            <input id="toCityIn" class="input" type="text" value="Los Angeles" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="dateIn">Date</label>
+            <input id="dateIn" class="input" type="text" value="2025-12-30" />
+          </div>
+          <div>
+            <label class="label" for="timeIn">Time</label>
+            <input id="timeIn" class="input" type="text" value="19:45" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="gateIn">Gate</label>
+            <input id="gateIn" class="input" type="text" value="C12" />
+          </div>
+          <div>
+            <label class="label" for="seatIn">Seat</label>
+            <input id="seatIn" class="input" type="text" value="14A" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="groupIn">Boarding Group</label>
+            <input id="groupIn" class="input" type="text" value="3" />
+          </div>
+          <div>
+            <label class="label" for="zoneIn">Zone</label>
+            <input id="zoneIn" class="input" type="text" value="B" />
+          </div>
+        </div>
+
+        <p class="tiny">Everything is editable for any story: airline, passenger, flight, cities, date/time, gate/seat, and barcode seed.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="randomBarcode" class="btnGhost">
+            <i class="fa-solid fa-barcode" style="margin-right:8px;"></i>
+            Randomize Barcode
+          </button>
+          <button id="randomAll" class="btnGhost">
+            <i class="fa-solid fa-shuffle" style="margin-right:8px;"></i>
+            Randomize All
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <div class="stage" id="captureArea" aria-label="Boarding pass preview">
+        <section class="pass" id="passCard">
+          <div class="tearDot" aria-hidden="true"></div>
+
+          <div class="left">
+            <div class="topRow">
+              <div class="airline">
+                <div class="logo"><i class="fa-solid fa-plane"></i></div>
+                <div class="airlineName" id="airlineOut">SKYHIGH AIRLINES</div>
+              </div>
+              <div class="ticketTag">BOARDING PASS</div>
+            </div>
+
+            <div class="route">
+              <div>
+                <div class="code" id="fromCodeOut">PDX</div>
+                <div class="citySmall" id="fromCityOut">PORTLAND</div>
+              </div>
+              <div class="arrow"><i class="fa-solid fa-arrow-right-long"></i></div>
+              <div style="text-align:right;">
+                <div class="code" id="toCodeOut">LAX</div>
+                <div class="citySmall" id="toCityOut">LOS ANGELES</div>
+              </div>
+            </div>
+
+            <div class="bigRow">
+              <div class="field">
+                <div class="k">Passenger</div>
+                <div class="v" id="passengerOut">MORGAN REYES</div>
+              </div>
+              <div class="field">
+                <div class="k">Flight</div>
+                <div class="v" id="flightOut">SH 418</div>
+              </div>
+            </div>
+
+            <div class="grid">
+              <div class="field">
+                <div class="k">Date</div>
+                <div class="v" id="dateOut">2025-12-30</div>
+              </div>
+              <div class="field">
+                <div class="k">Time</div>
+                <div class="v" id="timeOut">19:45</div>
+              </div>
+              <div class="field">
+                <div class="k">Gate</div>
+                <div class="v" id="gateOut">C12</div>
+              </div>
+              <div class="field">
+                <div class="k">Seat</div>
+                <div class="v" id="seatOut">14A</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="right">
+            <div>
+              <div class="field" style="margin-bottom:12px;">
+                <div class="k">Boarding</div>
+                <div class="v">Group <span id="groupOut">3</span> • Zone <span id="zoneOut">B</span></div>
+              </div>
+
+              <div class="barcodeWrap">
+                <div class="barcode" id="barcode"></div>
+                <div class="barcodeMeta">
+                  <span id="pnrOut">PNR: —</span>
+                  <span id="seqOut">SEQ: —</span>
+                </div>
+              </div>
+            </div>
+
+            <div style="font-family:'Courier Prime', monospace; font-size:11px; letter-spacing:.10em; text-transform:uppercase; color:rgba(15,23,42,.75);">
+              Please arrive at the gate 30 minutes prior to departure.
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const airlineIn = document.getElementById('airlineIn');
+    const passengerIn = document.getElementById('passengerIn');
+    const flightIn = document.getElementById('flightIn');
+    const fromCodeIn = document.getElementById('fromCodeIn');
+    const toCodeIn = document.getElementById('toCodeIn');
+    const fromCityIn = document.getElementById('fromCityIn');
+    const toCityIn = document.getElementById('toCityIn');
+    const dateIn = document.getElementById('dateIn');
+    const timeIn = document.getElementById('timeIn');
+    const gateIn = document.getElementById('gateIn');
+    const seatIn = document.getElementById('seatIn');
+    const groupIn = document.getElementById('groupIn');
+    const zoneIn = document.getElementById('zoneIn');
+
+    // Outputs
+    const airlineOut = document.getElementById('airlineOut');
+    const passengerOut = document.getElementById('passengerOut');
+    const flightOut = document.getElementById('flightOut');
+    const fromCodeOut = document.getElementById('fromCodeOut');
+    const toCodeOut = document.getElementById('toCodeOut');
+    const fromCityOut = document.getElementById('fromCityOut');
+    const toCityOut = document.getElementById('toCityOut');
+    const dateOut = document.getElementById('dateOut');
+    const timeOut = document.getElementById('timeOut');
+    const gateOut = document.getElementById('gateOut');
+    const seatOut = document.getElementById('seatOut');
+    const groupOut = document.getElementById('groupOut');
+    const zoneOut = document.getElementById('zoneOut');
+
+    const barcodeEl = document.getElementById('barcode');
+    const pnrOut = document.getElementById('pnrOut');
+    const seqOut = document.getElementById('seqOut');
+
+    const randomBarcodeBtn = document.getElementById('randomBarcode');
+    const randomAllBtn = document.getElementById('randomAll');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    // Barcode seed/state
+    let barcodeSeed = Math.floor(Math.random()*999999) + 1;
+    let pnr = makePNR();
+    let seq = makeSeq();
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function upper3(s){
+      const x = sanitize(s).toUpperCase().replace(/[^A-Z0-9]/g,'');
+      return (x || "XXX").slice(0,3);
+    }
+
+    function makePNR(){
+      const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+      let out = "";
+      for(let i=0;i<6;i++){
+        out += chars[Math.floor(Math.random()*chars.length)];
+      }
+      return out;
+    }
+
+    function makeSeq(){
+      return String(Math.floor(1 + Math.random()*189)).padStart(3,'0');
+    }
+
+    function prng(){
+      // deterministic pseudo-random based on seed
+      barcodeSeed = (barcodeSeed * 9301 + 49297) % 233280;
+      return barcodeSeed / 233280;
+    }
+
+    function renderBarcode(){
+      // Create a unique stripe pattern by layering a generated gradient
+      // (still CSS-based, no images)
+      let stops = [];
+      let pos = 0;
+      for(let i=0;i<140;i++){
+        const w = (prng() < 0.55) ? 1 : 2 + Math.floor(prng()*2); // thin/thicker
+        const black = prng() < 0.62;
+        const c = black ? "#111" : "#fff";
+        const start = pos;
+        const end = pos + w;
+        stops.push(`${c} ${start}px ${end}px`);
+        pos = end;
+      }
+      const gradient = `linear-gradient(90deg, ${stops.join(",")})`;
+      barcodeEl.style.background = gradient;
+    }
+
+    function build(){
+      airlineOut.textContent = sanitize(airlineIn.value) || "AIRLINE";
+      passengerOut.textContent = sanitize(passengerIn.value) || "—";
+      flightOut.textContent = sanitize(flightIn.value) || "—";
+
+      fromCodeOut.textContent = upper3(fromCodeIn.value);
+      toCodeOut.textContent = upper3(toCodeIn.value);
+
+      fromCityOut.textContent = (sanitize(fromCityIn.value) || "—").toUpperCase();
+      toCityOut.textContent = (sanitize(toCityIn.value) || "—").toUpperCase();
+
+      dateOut.textContent = sanitize(dateIn.value) || "—";
+      timeOut.textContent = sanitize(timeIn.value) || "—";
+      gateOut.textContent = sanitize(gateIn.value) || "—";
+      seatOut.textContent = sanitize(seatIn.value) || "—";
+
+      groupOut.textContent = sanitize(groupIn.value) || "—";
+      zoneOut.textContent = sanitize(zoneIn.value) || "—";
+
+      pnrOut.textContent = `PNR: ${pnr}`;
+      seqOut.textContent = `SEQ: ${seq}`;
+    }
+
+    [airlineIn, passengerIn, flightIn, fromCodeIn, toCodeIn, fromCityIn, toCityIn, dateIn, timeIn, gateIn, seatIn, groupIn, zoneIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    randomBarcodeBtn.addEventListener('click', ()=>{
+      barcodeSeed = Math.floor(Math.random()*999999) + 1;
+      pnr = makePNR();
+      seq = makeSeq();
+      renderBarcode();
+      build();
+    });
+
+    randomAllBtn.addEventListener('click', ()=>{
+      const airlines = ["SKYHIGH AIRLINES","NIGHTFALL AIR","REDLINE AVIATION","NORTH COAST AIR","SILVER ARROW AIR"];
+      const names = ["MORGAN REYES","ALEX MORROW","TAYLOR GRANT","CASEY VALE","JORDAN VALE","RILEY PARK"];
+      const codes = ["LAX","PDX","SEA","SFO","JFK","ORD","MIA","ATL","BOS","DEN"];
+      const cities = {
+        LAX:"Los Angeles", PDX:"Portland", SEA:"Seattle", SFO:"San Francisco", JFK:"New York",
+        ORD:"Chicago", MIA:"Miami", ATL:"Atlanta", BOS:"Boston", DEN:"Denver"
+      };
+      const pick = arr => arr[Math.floor(Math.random()*arr.length)];
+      const a = pick(airlines);
+      const n = pick(names);
+      let from = pick(codes), to = pick(codes);
+      while(to === from) to = pick(codes);
+
+      airlineIn.value = a;
+      passengerIn.value = n;
+      flightIn.value = `${a.split(" ")[0].slice(0,2).toUpperCase()} ${Math.floor(100 + Math.random()*900)}`;
+      fromCodeIn.value = from;
+      toCodeIn.value = to;
+      fromCityIn.value = cities[from] || from;
+      toCityIn.value = cities[to] || to;
+
+      dateIn.value = `2025-${String(1+Math.floor(Math.random()*12)).padStart(2,'0')}-${String(1+Math.floor(Math.random()*28)).padStart(2,'0')}`;
+      timeIn.value = `${String(Math.floor(Math.random()*24)).padStart(2,'0')}:${String([0,5,10,15,20,25,30,35,40,45,50,55][Math.floor(Math.random()*12)]).padStart(2,'0')}`;
+      gateIn.value = `${"ABCDEFGH"[Math.floor(Math.random()*8)]}${Math.floor(1+Math.random()*24)}`;
+      seatIn.value = `${Math.floor(1+Math.random()*32)}${"ABCDEF"[Math.floor(Math.random()*6)]}`;
+      groupIn.value = String(1+Math.floor(Math.random()*6));
+      zoneIn.value = "ABCDE"[Math.floor(Math.random()*5)];
+
+      barcodeSeed = Math.floor(Math.random()*999999) + 1;
+      pnr = makePNR();
+      seq = makeSeq();
+      renderBarcode();
+      build();
+    });
+
+    // JSON save/load
+    function getState(){
+      return {
+        airline: airlineIn.value,
+        passenger: passengerIn.value,
+        flight: flightIn.value,
+        fromCode: fromCodeIn.value,
+        toCode: toCodeIn.value,
+        fromCity: fromCityIn.value,
+        toCity: toCityIn.value,
+        date: dateIn.value,
+        time: timeIn.value,
+        gate: gateIn.value,
+        seat: seatIn.value,
+        group: groupIn.value,
+        zone: zoneIn.value,
+        barcodeSeed,
+        pnr,
+        seq
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      airlineIn.value = s.airline ?? airlineIn.value;
+      passengerIn.value = s.passenger ?? passengerIn.value;
+      flightIn.value = s.flight ?? flightIn.value;
+      fromCodeIn.value = s.fromCode ?? fromCodeIn.value;
+      toCodeIn.value = s.toCode ?? toCodeIn.value;
+      fromCityIn.value = s.fromCity ?? fromCityIn.value;
+      toCityIn.value = s.toCity ?? toCityIn.value;
+      dateIn.value = s.date ?? dateIn.value;
+      timeIn.value = s.time ?? timeIn.value;
+      gateIn.value = s.gate ?? gateIn.value;
+      seatIn.value = s.seat ?? seatIn.value;
+      groupIn.value = s.group ?? groupIn.value;
+      zoneIn.value = s.zone ?? zoneIn.value;
+
+      barcodeSeed = Number.isFinite(Number(s.barcodeSeed)) ? Number(s.barcodeSeed) : barcodeSeed;
+      pnr = (s.pnr ?? pnr).toString();
+      seq = (s.seq ?? seq).toString();
+
+      renderBarcode();
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        setState(JSON.parse(raw));
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    renderBarcode();
+    build();
+
+    // Export
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `boarding_pass_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

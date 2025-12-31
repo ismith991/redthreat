@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Yearbook Quote</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Playfair+Display:wght@400;600;700;900&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#0b0b0b;
+      --soft:#f3f4f6;
+      --stroke:#d1d5db;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:120px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* Yearbook page (A4-ish) */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      position:relative;
+      overflow:hidden;
+      padding:32px;
+      font-family: "Playfair Display", Georgia, "Times New Roman", serif;
+    }
+
+    .ybHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:12px;
+      padding-bottom:14px;
+      border-bottom:2px solid #0b0b0b;
+      margin-bottom:18px;
+    }
+    .ybTitle{
+      margin:0;
+      font-size:22px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-weight:900;
+    }
+    .ybMeta{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      opacity:.75;
+      text-align:right;
+    }
+
+    .entry{
+      display:grid;
+      grid-template-columns: 330px 1fr;
+      gap:24px;
+      align-items:start;
+      margin-top:24px;
+    }
+
+    .photoFrame{
+      width:330px;
+      height:420px;
+      border:2px solid #111;
+      background:#f5f5f5;
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      filter: grayscale(1);
+    }
+
+    /* No <img> unless user-uploaded. We'll insert an <img> only when a file is chosen. */
+    .photoPlaceholder{
+      width:100%;
+      height:100%;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      flex-direction:column;
+      gap:10px;
+      background:
+        linear-gradient(135deg, rgba(0,0,0,.06), transparent 55%),
+        repeating-linear-gradient(0deg, rgba(0,0,0,.06) 0 2px, transparent 2px 10px);
+      color:#111;
+      font-family:"Courier Prime", monospace;
+      text-transform:uppercase;
+      letter-spacing:.10em;
+      font-size:12px;
+      opacity:.85;
+    }
+    .photoPlaceholder i{ font-size:28px; opacity:.9; }
+
+    .photoFrame img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      filter: grayscale(1) contrast(1.05);
+    }
+
+    .caption{
+      margin-top:14px;
+      text-align:center;
+      padding-top:12px;
+      border-top:1px solid rgba(0,0,0,.18);
+    }
+    .name{
+      margin:0;
+      font-size:26px;
+      font-weight:900;
+      letter-spacing:.02em;
+      text-transform:uppercase;
+    }
+
+    .rightCol{
+      padding-top:6px;
+    }
+
+    .superlative{
+      display:inline-block;
+      border:2px solid #111;
+      padding:10px 14px;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      margin-bottom:18px;
+      background:#fff;
+    }
+    .superlative.hidden{ display:none; }
+
+    .quote{
+      font-size:26px;
+      line-height:1.25;
+      font-style:italic;
+      margin:0;
+      padding:18px 18px;
+      border-left:4px solid #111;
+      background: #fafafa;
+    }
+
+    .sigRow{
+      margin-top:14px;
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-end;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      opacity:.75;
+    }
+
+    .watermark{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.35em;
+      text-transform:uppercase;
+      font-size:64px;
+      color:rgba(0,0,0,.05);
+      transform:rotate(-18deg);
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .entry{ grid-template-columns: 1fr; }
+      .photoFrame{ width:100%; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-graduation-cap"></i> Personal Effects — Yearbook Quote</h2>
+
+      <div class="cc-card">
+        <label class="label" for="nameIn">Student Name</label>
+        <input id="nameIn" class="input" type="text" value="JAMIE HART" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="superIn">Superlative (Optional)</label>
+        <input id="superIn" class="input" type="text" value="Most Likely To Disappear For A Week And Come Back With A Secret" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="quoteIn">Quote</label>
+        <textarea id="quoteIn" class="textarea">"If you think I’m smiling, you’re probably missing the joke."</textarea>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="photoIn">Portrait Photo (Upload)</label>
+        <input id="photoIn" class="input" type="file" accept="image/*" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="toggleSuper" class="btnGhost">
+            <i class="fa-solid fa-toggle-on" style="margin-right:8px;"></i>
+            Toggle Superlative
+          </button>
+          <button id="randomize" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+            Randomize
+          </button>
+        </div>
+
+        <p class="tiny">Photo upload included by default. If you don’t upload, it stays as a grayscale placeholder.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Yearbook quote preview">
+        <div class="watermark">YEARBOOK</div>
+
+        <div class="ybHeader">
+          <h1 class="ybTitle">Senior Portraits</h1>
+          <div class="ybMeta">
+            BLACK &amp; WHITE EDITION<br>
+            CLASS ARCHIVE ENTRY
+          </div>
+        </div>
+
+        <div class="entry">
+          <div>
+            <div class="photoFrame" id="photoFrame">
+              <div class="photoPlaceholder" id="photoPlaceholder">
+                <i class="fa-solid fa-user"></i>
+                <div>PORTRAIT</div>
+                <div style="opacity:.7; font-size:11px;">(Upload photo)</div>
+              </div>
+              <!-- user-uploaded <img> will be inserted here -->
+            </div>
+
+            <div class="caption">
+              <p class="name" id="nameOut">JAMIE HART</p>
+            </div>
+          </div>
+
+          <div class="rightCol">
+            <div class="superlative" id="superOut">Most Likely To...</div>
+
+            <p class="quote" id="quoteOut">—</p>
+
+            <div class="sigRow">
+              <span>ENTRY ID: <span id="entryIdOut">—</span></span>
+              <span>PRINT: B/W</span>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const nameIn = document.getElementById('nameIn');
+    const superIn = document.getElementById('superIn');
+    const quoteIn = document.getElementById('quoteIn');
+    const photoIn = document.getElementById('photoIn');
+
+    const nameOut = document.getElementById('nameOut');
+    const superOut = document.getElementById('superOut');
+    const quoteOut = document.getElementById('quoteOut');
+
+    const toggleSuperBtn = document.getElementById('toggleSuper');
+    const randomizeBtn = document.getElementById('randomize');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    const photoFrame = document.getElementById('photoFrame');
+    const photoPlaceholder = document.getElementById('photoPlaceholder');
+    const entryIdOut = document.getElementById('entryIdOut');
+
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    let showSuper = true;
+    let photoDataUrl = ""; // stored for JSON export/import
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function makeId(){
+      const a = Math.floor(100000 + Math.random()*900000);
+      const b = Math.floor(10 + Math.random()*90);
+      return `YB-${a}-${b}`;
+    }
+
+    function build(){
+      const nm = sanitize(nameIn.value) || "—";
+      nameOut.textContent = nm.toUpperCase();
+
+      const sup = sanitize(superIn.value);
+      if(showSuper && sup){
+        superOut.textContent = sup;
+        superOut.classList.remove('hidden');
+      } else {
+        superOut.classList.add('hidden');
+      }
+
+      const q = sanitize(quoteIn.value) || "—";
+      quoteOut.textContent = q;
+
+      if(!entryIdOut.textContent || entryIdOut.textContent === "—"){
+        entryIdOut.textContent = makeId();
+      }
+    }
+
+    // Photo handling (allowed <img> only for user upload)
+    function setPhoto(dataUrl){
+      // remove existing uploaded image if any
+      const existing = photoFrame.querySelector('img');
+      if(existing) existing.remove();
+
+      photoDataUrl = dataUrl || "";
+      if(!photoDataUrl){
+        photoPlaceholder.style.display = "flex";
+        return;
+      }
+
+      const img = document.createElement('img');
+      img.alt = "Uploaded portrait";
+      img.src = photoDataUrl;
+      photoFrame.appendChild(img);
+      photoPlaceholder.style.display = "none";
+    }
+
+    photoIn.addEventListener('change', ()=>{
+      const file = photoIn.files && photoIn.files[0];
+      if(!file){
+        setPhoto("");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e)=> setPhoto(e.target.result);
+      reader.readAsDataURL(file);
+    });
+
+    toggleSuperBtn.addEventListener('click', ()=>{
+      showSuper = !showSuper;
+      build();
+    });
+
+    randomizeBtn.addEventListener('click', ()=>{
+      const names = ["JAMIE HART","CASEY VALE","RILEY PARK","TAYLOR GRANT","MORGAN REYES","ALEX MORROW"];
+      const supers = [
+        "Most Likely To Become A Legend",
+        "Most Likely To Vanish After Graduation",
+        "Most Likely To Start A Secret Club",
+        "Most Likely To Know Everyone’s Secrets",
+        "Most Likely To Move Somewhere With No Address"
+      ];
+      const quotes = [
+        "\"See you on the other side.\"",
+        "\"If you’re reading this, you already know.\"",
+        "\"I wasn’t lost. I was looking.\"",
+        "\"Keep the lights on.\"",
+        "\"Don’t trust the quiet.\""
+      ];
+      const pick = a => a[Math.floor(Math.random()*a.length)];
+
+      nameIn.value = pick(names);
+      superIn.value = pick(supers);
+      quoteIn.value = pick(quotes);
+      entryIdOut.textContent = makeId();
+      build();
+    });
+
+    [nameIn, superIn, quoteIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    // JSON save/load
+    function getState(){
+      return {
+        name: nameIn.value,
+        superlative: superIn.value,
+        quote: quoteIn.value,
+        showSuper,
+        entryId: entryIdOut.textContent,
+        photoDataUrl
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      nameIn.value = s.name ?? nameIn.value;
+      superIn.value = s.superlative ?? superIn.value;
+      quoteIn.value = s.quote ?? quoteIn.value;
+      showSuper = (typeof s.showSuper === "boolean") ? s.showSuper : showSuper;
+      entryIdOut.textContent = (s.entryId ?? entryIdOut.textContent ?? makeId()).toString();
+      setPhoto((s.photoDataUrl ?? "").toString());
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        setState(JSON.parse(raw));
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    entryIdOut.textContent = makeId();
+    build();
+
+    // Export
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `yearbook_quote_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

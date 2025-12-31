@@ -1,0 +1,939 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Arrest Record (Booking Sheet)</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111;
+      --grid:#cfcfcf;
+      --head:#f4f4f4;
+      --soft:#fbfbfb;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:100px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4 */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:24px;
+      position:relative;
+      overflow:hidden;
+      font-family:"Courier Prime", monospace; /* booking sheet vibe */
+    }
+
+    .wm{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      pointer-events:none;
+      user-select:none;
+      z-index:0;
+      opacity:.06;
+      font-weight:900;
+      letter-spacing:.28em;
+      font-size:110px;
+      transform:rotate(-22deg);
+      color:#000;
+      white-space:nowrap;
+      text-transform:uppercase;
+    }
+
+    .doc{ position:relative; z-index:1; }
+
+    .topBar{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      border-bottom:2px solid #111;
+      padding-bottom:10px;
+      margin-bottom:12px;
+    }
+    .tLeft{
+      display:flex; align-items:center; gap:10px;
+      min-width:0;
+    }
+    .badgeIcon{
+      width:34px;height:34px;
+      border:2px solid #111;
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    .titleWrap{ min-width:0; }
+    .title{
+      margin:0;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:16px;
+    }
+    .sub{
+      margin-top:6px;
+      font-size:12px;
+      color:#222;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+    }
+
+    /* Split view */
+    .split{
+      display:grid;
+      grid-template-columns: 0.42fr 0.58fr;
+      gap:14px;
+      margin-top:12px;
+    }
+
+    /* Mugshot card */
+    .mugCard{
+      border:1px solid var(--grid);
+      background:var(--soft);
+      padding:12px;
+    }
+    .mugHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      border-bottom:1px solid var(--grid);
+      padding-bottom:10px;
+      margin-bottom:10px;
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+    .mugBox{
+      width:100%;
+      aspect-ratio: 3 / 4;
+      border:2px solid #111;
+      background:#d9d9d9;
+      position:relative;
+      overflow:hidden;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+    }
+    /* We must not use <img> except user-uploaded suspect photos. This <img> is only for that. */
+    .mugBox img{
+      width:100%;
+      height:100%;
+      object-fit:cover;
+      display:none;
+      filter: grayscale(1) contrast(1.1) brightness(.95); /* booking/mugshot feel */
+    }
+    .mugPlaceholder{
+      color:#111;
+      opacity:.65;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:12px;
+      text-align:center;
+      padding:10px;
+    }
+    .mugOverlay{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      mix-blend-mode:multiply;
+      opacity:.9;
+      background:
+        repeating-linear-gradient(0deg, rgba(0,0,0,.08) 0px, rgba(0,0,0,.08) 1px, transparent 1px, transparent 3px),
+        radial-gradient(260px 220px at 30% 25%, rgba(0,0,0,.14), transparent 60%),
+        radial-gradient(240px 210px at 70% 70%, rgba(0,0,0,.12), transparent 62%);
+    }
+    .mugFooter{
+      margin-top:10px;
+      border-top:1px solid var(--grid);
+      padding-top:10px;
+      font-size:11px;
+      color:#222;
+      line-height:1.4;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    /* Vital stats grid */
+    .stats{
+      border:1px solid var(--grid);
+      background:#fff;
+    }
+    .statsTitle{
+      background:var(--head);
+      border-bottom:1px solid var(--grid);
+      padding:10px 12px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .cell{
+      border-right:1px solid var(--grid);
+      border-bottom:1px solid var(--grid);
+      padding:10px 12px 9px;
+      min-height:54px;
+    }
+    .grid .cell:nth-child(2n){ border-right:none; }
+    .grid .cell:nth-last-child(-n+2){ border-bottom:none; }
+
+    .k{
+      display:block;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#222;
+      margin-bottom:6px;
+    }
+    .v{
+      font-size:13px;
+      font-weight:700;
+      color:#111;
+      word-break:break-word;
+      min-height:16px;
+    }
+
+    /* Charges */
+    .charges{
+      margin-top:12px;
+      border:1px solid var(--grid);
+      background:#fff;
+    }
+    .chargesTitle{
+      background:var(--head);
+      border-bottom:1px solid var(--grid);
+      padding:10px 12px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:12px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .chargesBody{
+      padding:10px 12px;
+      font-size:13px;
+      line-height:1.25;
+      white-space:pre-wrap;
+      min-height:120px;
+    }
+    .chip{
+      border:1px solid #111;
+      padding:4px 8px;
+      border-radius:999px;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      background:#fff;
+    }
+
+    /* Fingerprint area */
+    .fpWrap{
+      margin-top:14px;
+      border:1px solid var(--grid);
+      background:#fff;
+    }
+    .fpTitle{
+      background:var(--head);
+      border-bottom:1px solid var(--grid);
+      padding:10px 12px;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+    .fpGrid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+    }
+    .fpBox{
+      border-right:1px solid var(--grid);
+      padding:12px;
+      min-height:170px;
+    }
+    .fpBox:last-child{ border-right:none; }
+    .fpLabel{
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#222;
+      margin-bottom:10px;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .print{
+      width:100%;
+      height:120px;
+      border:2px solid #111;
+      background:
+        radial-gradient(circle at 40% 40%, rgba(0,0,0,.15), transparent 55%),
+        repeating-radial-gradient(circle at 45% 48%, rgba(0,0,0,.35) 0 2px, rgba(0,0,0,0) 2px 6px);
+      opacity:.75;
+      border-radius:18px;
+    }
+
+    /* Responsive */
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .split{ grid-template-columns: 1fr; }
+      .grid{ grid-template-columns: 1fr; }
+      .cell{ border-right:none !important; }
+      .grid .cell{ border-bottom:1px solid var(--grid); }
+      .grid .cell:last-child{ border-bottom:none; }
+      .fpGrid{ grid-template-columns: 1fr; }
+      .fpBox{ border-right:none; border-bottom:1px solid var(--grid); }
+      .fpBox:last-child{ border-bottom:none; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-user-lock"></i> Legal & Court — Arrest Record</h2>
+
+      <div class="cc-card">
+        <label class="label" for="photoIn">Suspect Photo (Upload from PC)</label>
+        <input id="photoIn" class="input" type="file" accept="image/*" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="clearPhoto" class="btnGhost">
+            <i class="fa-solid fa-eraser" style="margin-right:8px;"></i>
+            Clear Photo
+          </button>
+          <button id="toggleGrain" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+            Toggle “Grainy” Effect
+          </button>
+        </div>
+
+        <p class="tiny">Photo is optional. If uploaded, it gets a booking-style black & white treatment.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="nameIn">Name</label>
+            <input id="nameIn" class="input" type="text" value="SUSPECT NAME" />
+          </div>
+          <div>
+            <label class="label" for="bookingIn">Booking #</label>
+            <input id="bookingIn" class="input" type="text" value="BK-25-88419" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="dobIn">DOB</label>
+            <input id="dobIn" class="input" type="text" value="1994-06-18" />
+          </div>
+          <div>
+            <label class="label" for="sexIn">Sex</label>
+            <input id="sexIn" class="input" type="text" value="M" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="heightIn">Height</label>
+            <input id="heightIn" class="input" type="text" value="5'11&quot;" />
+          </div>
+          <div>
+            <label class="label" for="weightIn">Weight</label>
+            <input id="weightIn" class="input" type="text" value="178 lb" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="eyeIn">Eye Color</label>
+            <input id="eyeIn" class="input" type="text" value="BROWN" />
+          </div>
+          <div>
+            <label class="label" for="hairIn">Hair</label>
+            <input id="hairIn" class="input" type="text" value="BLACK" />
+          </div>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="chargesIn">Charges (one per line)</label>
+        <textarea id="chargesIn" class="textarea">187 PC - Murder
+245(a)(1) PC - Assault with a deadly weapon
+136.1 PC - Witness intimidation</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Arrest record preview">
+        <div class="wm">BOOKING</div>
+
+        <div class="doc">
+          <div class="topBar">
+            <div class="tLeft">
+              <div class="badgeIcon"><i class="fa-solid fa-id-card-clip"></i></div>
+              <div class="titleWrap">
+                <h1 class="title">ARREST / BOOKING RECORD</h1>
+                <div class="sub">Mugshot Card • Detention Intake</div>
+              </div>
+            </div>
+            <div class="sub" style="text-align:right; min-width:220px;">
+              FORM: BOOK-01 • INTERNAL
+            </div>
+          </div>
+
+          <div class="split">
+            <!-- Left: Mugshot -->
+            <div class="mugCard">
+              <div class="mugHeader">
+                <span>Mugshot</span>
+                <span class="chip" id="bookingOutChip">BK-—</span>
+              </div>
+
+              <div class="mugBox" id="mugBox">
+                <div class="mugPlaceholder" id="mugPlaceholder">
+                  NO PHOTO<br/>UPLOADED
+                </div>
+                <img id="mugImg" alt="Uploaded suspect photo">
+                <div class="mugOverlay" id="mugOverlay"></div>
+              </div>
+
+              <div class="mugFooter">
+                <div><strong>Name:</strong> <span id="nameOutSmall">—</span></div>
+                <div><strong>DOB:</strong> <span id="dobOutSmall">—</span></div>
+              </div>
+            </div>
+
+            <!-- Right: Vital Stats -->
+            <div>
+              <div class="stats">
+                <div class="statsTitle">Vital Stats</div>
+                <div class="grid">
+                  <div class="cell">
+                    <span class="k">Name</span>
+                    <div class="v" id="nameOut">—</div>
+                  </div>
+                  <div class="cell">
+                    <span class="k">Booking #</span>
+                    <div class="v" id="bookingOut">—</div>
+                  </div>
+
+                  <div class="cell">
+                    <span class="k">DOB</span>
+                    <div class="v" id="dobOut">—</div>
+                  </div>
+                  <div class="cell">
+                    <span class="k">Sex</span>
+                    <div class="v" id="sexOut">—</div>
+                  </div>
+
+                  <div class="cell">
+                    <span class="k">Height</span>
+                    <div class="v" id="heightOut">—</div>
+                  </div>
+                  <div class="cell">
+                    <span class="k">Weight</span>
+                    <div class="v" id="weightOut">—</div>
+                  </div>
+
+                  <div class="cell">
+                    <span class="k">Eye Color</span>
+                    <div class="v" id="eyeOut">—</div>
+                  </div>
+                  <div class="cell">
+                    <span class="k">Hair</span>
+                    <div class="v" id="hairOut">—</div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="charges">
+                <div class="chargesTitle">
+                  <span>Charges</span>
+                  <span class="chip">ACTIVE</span>
+                </div>
+                <div class="chargesBody" id="chargesOut"></div>
+              </div>
+
+              <div class="fpWrap">
+                <div class="fpTitle">Fingerprint Area</div>
+                <div class="fpGrid">
+                  <div class="fpBox">
+                    <div class="fpLabel">
+                      <span>Left Thumb</span>
+                      <span style="opacity:.65;">FD-258</span>
+                    </div>
+                    <div class="print" aria-label="Left thumb print placeholder"></div>
+                  </div>
+                  <div class="fpBox">
+                    <div class="fpLabel">
+                      <span>Right Thumb</span>
+                      <span style="opacity:.65;">FD-258</span>
+                    </div>
+                    <div class="print" aria-label="Right thumb print placeholder"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const photoIn = document.getElementById('photoIn');
+    const clearPhotoBtn = document.getElementById('clearPhoto');
+    const toggleGrainBtn = document.getElementById('toggleGrain');
+
+    const nameIn = document.getElementById('nameIn');
+    const bookingIn = document.getElementById('bookingIn');
+    const dobIn = document.getElementById('dobIn');
+    const sexIn = document.getElementById('sexIn');
+    const heightIn = document.getElementById('heightIn');
+    const weightIn = document.getElementById('weightIn');
+    const eyeIn = document.getElementById('eyeIn');
+    const hairIn = document.getElementById('hairIn');
+    const chargesIn = document.getElementById('chargesIn');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    // Outputs
+    const mugImg = document.getElementById('mugImg');
+    const mugPlaceholder = document.getElementById('mugPlaceholder');
+    const mugOverlay = document.getElementById('mugOverlay');
+
+    const nameOut = document.getElementById('nameOut');
+    const bookingOut = document.getElementById('bookingOut');
+    const dobOut = document.getElementById('dobOut');
+    const sexOut = document.getElementById('sexOut');
+    const heightOut = document.getElementById('heightOut');
+    const weightOut = document.getElementById('weightOut');
+    const eyeOut = document.getElementById('eyeOut');
+    const hairOut = document.getElementById('hairOut');
+
+    const chargesOut = document.getElementById('chargesOut');
+
+    const bookingOutChip = document.getElementById('bookingOutChip');
+    const nameOutSmall = document.getElementById('nameOutSmall');
+    const dobOutSmall = document.getElementById('dobOutSmall');
+
+    let photoDataUrl = "";
+    let grainOn = true;
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function build(){
+      const nm = sanitize(nameIn.value) || "—";
+      const bk = sanitize(bookingIn.value) || "—";
+      const db = sanitize(dobIn.value) || "—";
+
+      nameOut.textContent = nm;
+      bookingOut.textContent = bk;
+      dobOut.textContent = db;
+
+      sexOut.textContent = sanitize(sexIn.value) || "—";
+      heightOut.textContent = sanitize(heightIn.value) || "—";
+      weightOut.textContent = sanitize(weightIn.value) || "—";
+      eyeOut.textContent = sanitize(eyeIn.value) || "—";
+      hairOut.textContent = sanitize(hairIn.value) || "—";
+
+      bookingOutChip.textContent = bk;
+      nameOutSmall.textContent = nm;
+      dobOutSmall.textContent = db;
+
+      const ch = (chargesIn.value || "").trim();
+      chargesOut.textContent = ch ? ch : "—";
+
+      // Photo render
+      if(photoDataUrl){
+        mugImg.src = photoDataUrl;
+        mugImg.style.display = "block";
+        mugPlaceholder.style.display = "none";
+      } else {
+        mugImg.removeAttribute("src");
+        mugImg.style.display = "none";
+        mugPlaceholder.style.display = "block";
+      }
+
+      // Grain toggle
+      mugOverlay.style.display = grainOn ? "block" : "none";
+      mugImg.style.filter = grainOn
+        ? "grayscale(1) contrast(1.1) brightness(.95)"
+        : "grayscale(1) contrast(1.05) brightness(1)";
+    }
+
+    // Photo upload
+    photoIn.addEventListener('change', ()=>{
+      const file = photoIn.files && photoIn.files[0];
+      if(!file){
+        photoDataUrl = "";
+        build();
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        photoDataUrl = String(reader.result || "");
+        build();
+      };
+      reader.readAsDataURL(file);
+    });
+
+    clearPhotoBtn.addEventListener('click', ()=>{
+      photoIn.value = "";
+      photoDataUrl = "";
+      build();
+    });
+
+    toggleGrainBtn.addEventListener('click', ()=>{
+      grainOn = !grainOn;
+      build();
+    });
+
+    // Live updates
+    [nameIn, bookingIn, dobIn, sexIn, heightIn, weightIn, eyeIn, hairIn, chargesIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    // JSON save/load (includes photo as dataURL if present)
+    function getState(){
+      return {
+        name: nameIn.value,
+        booking: bookingIn.value,
+        dob: dobIn.value,
+        sex: sexIn.value,
+        height: heightIn.value,
+        weight: weightIn.value,
+        eye: eyeIn.value,
+        hair: hairIn.value,
+        charges: chargesIn.value,
+        grainOn,
+        photoDataUrl
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      nameIn.value = s.name ?? nameIn.value;
+      bookingIn.value = s.booking ?? bookingIn.value;
+      dobIn.value = s.dob ?? dobIn.value;
+      sexIn.value = s.sex ?? sexIn.value;
+      heightIn.value = s.height ?? heightIn.value;
+      weightIn.value = s.weight ?? weightIn.value;
+      eyeIn.value = s.eye ?? eyeIn.value;
+      hairIn.value = s.hair ?? hairIn.value;
+      chargesIn.value = s.charges ?? chargesIn.value;
+
+      grainOn = (typeof s.grainOn === "boolean") ? s.grainOn : grainOn;
+      photoDataUrl = (typeof s.photoDataUrl === "string") ? s.photoDataUrl : photoDataUrl;
+
+      // keep file input blank (browser security)
+      photoIn.value = "";
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `arrest_record_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

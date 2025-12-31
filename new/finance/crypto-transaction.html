@@ -1,0 +1,933 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Crypto Transaction</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --card:#0f1424;
+      --card2:#0b1020;
+      --stroke:#1f2a46;
+      --blue:#4f8cff;
+      --cyan:#22d3ee;
+      --good:#36d399;
+      --bad:#ff5b5b;
+
+      --paperText:#eef2ff;
+      --subText: rgba(238,242,255,.72);
+      --chip: rgba(255,255,255,.06);
+      --chipStroke: rgba(255,255,255,.10);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:90px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    .page{
+      width: 980px;
+      max-width: 100%;
+      border-radius: 18px;
+      background:
+        radial-gradient(1000px 600px at 20% 10%, rgba(79,140,255,.20), transparent 55%),
+        radial-gradient(900px 520px at 90% 20%, rgba(34,211,238,.14), transparent 50%),
+        linear-gradient(180deg, var(--card), var(--card2));
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow: 0 18px 45px rgba(0,0,0,.55);
+      padding: 18px;
+      color: var(--paperText);
+      position:relative;
+      overflow:hidden;
+    }
+
+    .topbar{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:14px;
+      padding: 10px 10px 16px 10px;
+      border-bottom: 1px solid rgba(255,255,255,.08);
+    }
+
+    .brand{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+    }
+
+    .brandIcon{
+      width:34px;height:34px;
+      border-radius:10px;
+      background: rgba(79,140,255,.16);
+      border:1px solid rgba(79,140,255,.35);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      box-shadow: 0 0 18px rgba(79,140,255,.18);
+    }
+    .brandIcon i{ color: var(--blue); }
+
+    .brandText{
+      min-width:0;
+    }
+    .brandTitle{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+      font-family:"Courier Prime", monospace;
+      color: rgba(238,242,255,.86);
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .brandSub{
+      margin-top:4px;
+      font-size:12px;
+      color: var(--subText);
+      letter-spacing:.02em;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .chips{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+    }
+
+    .chip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:7px 10px;
+      border-radius:999px;
+      border:1px solid var(--chipStroke);
+      background: var(--chip);
+      font-size:12px;
+      color: var(--subText);
+      letter-spacing:.02em;
+      white-space:nowrap;
+    }
+    .chip .dot{
+      width:8px;height:8px;border-radius:50%;
+      background: var(--good);
+      box-shadow: 0 0 12px rgba(54,211,153,.25);
+    }
+
+    .chip.bad .dot{ background: var(--bad); box-shadow: 0 0 12px rgba(255,91,91,.25); }
+    .chip strong{ color: rgba(238,242,255,.95); font-weight:800; }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.3fr .7fr;
+      gap:14px;
+      padding: 14px 10px 10px;
+    }
+
+    .panel{
+      background: rgba(255,255,255,.04);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      padding: 14px;
+    }
+
+    .panelTitle{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      color: rgba(238,242,255,.72);
+      margin-bottom:10px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .panelTitle i{ color: rgba(79,140,255,.9); }
+
+    .field{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      padding:10px 0;
+      border-top: 1px solid rgba(255,255,255,.08);
+      font-size:13px;
+    }
+    .field:first-of-type{ border-top:none; padding-top:6px; }
+
+    .k{
+      color: rgba(238,242,255,.62);
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      font-size:11px;
+      padding-top:2px;
+      min-width: 170px;
+    }
+    .v{
+      text-align:right;
+      color: rgba(238,242,255,.92);
+      word-break: break-all;
+      font-family: Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    .hash{
+      font-family: "Courier Prime", monospace;
+      color: rgba(238,242,255,.92);
+      letter-spacing:.02em;
+    }
+
+    .linkish{
+      color: rgba(34,211,238,.95);
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      cursor:pointer;
+    }
+
+    .bigVal{
+      font-weight:900;
+      font-size:20px;
+      letter-spacing:.02em;
+      color: rgba(238,242,255,.96);
+    }
+    .usd{
+      color: rgba(238,242,255,.70);
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      margin-top:6px;
+    }
+
+    .rightStats{
+      display:flex;
+      flex-direction:column;
+      gap:12px;
+    }
+
+    .statCard{
+      background: rgba(0,0,0,.18);
+      border: 1px solid rgba(255,255,255,.08);
+      border-radius: 16px;
+      padding: 14px;
+      position:relative;
+      overflow:hidden;
+    }
+    .statCard:before{
+      content:"";
+      position:absolute;
+      inset:-40px -40px auto auto;
+      width:140px;height:140px;
+      background: radial-gradient(circle, rgba(79,140,255,.18), transparent 60%);
+      filter: blur(0px);
+    }
+
+    .statLabel{
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      color: rgba(238,242,255,.62);
+      margin-bottom:8px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .statLabel i{ color: rgba(79,140,255,.9); }
+
+    .statValue{
+      font-weight:900;
+      font-size:22px;
+      letter-spacing:.02em;
+      color: rgba(238,242,255,.96);
+      word-break: break-word;
+    }
+    .statSub{
+      margin-top:6px;
+      font-size:12px;
+      color: rgba(238,242,255,.60);
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+    }
+
+    .note{
+      margin-top:12px;
+      font-size:12px;
+      color: rgba(238,242,255,.62);
+      line-height:1.5;
+      border-top: 1px dashed rgba(255,255,255,.14);
+      padding-top:12px;
+    }
+
+    @media (max-width: 980px){
+      .grid{ grid-template-columns: 1fr; }
+      .k{ min-width: 150px; }
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-brands fa-ethereum"></i> Financial Intel — Crypto Transaction</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="chain">Network / Explorer</label>
+            <select id="chain" class="select">
+              <option value="Ethereum">Ethereum</option>
+              <option value="Bitcoin">Bitcoin</option>
+              <option value="Polygon">Polygon</option>
+              <option value="Arbitrum">Arbitrum</option>
+              <option value="Solana">Solana</option>
+              <option value="Custom" selected>Custom</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="explorer">Explorer Title</label>
+            <input id="explorer" class="input" type="text" value="BLOCKCHAIN TRANSACTION DETAILS" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="txHash">Transaction Hash</label>
+        <input id="txHash" class="input" type="text" value="0x" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="status">Status</label>
+            <select id="status" class="select">
+              <option value="Success" selected>Success</option>
+              <option value="Failed">Failed</option>
+              <option value="Pending">Pending</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="block">Block Height</label>
+            <input id="block" class="input" type="text" value="142091" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="date">Date</label>
+            <input id="date" class="input" type="text" value="2025-12-30" />
+          </div>
+          <div>
+            <label class="label" for="time">Time</label>
+            <input id="time" class="input" type="text" value="19:42:11" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="from">From (Sender Wallet)</label>
+        <input id="from" class="input" type="text" value="0x" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="to">To (Receiver Wallet)</label>
+        <input id="to" class="input" type="text" value="0x" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="asset">Asset</label>
+            <input id="asset" class="input" type="text" value="ETH" />
+          </div>
+          <div>
+            <label class="label" for="amt">Amount</label>
+            <input id="amt" class="input" type="text" value="42.5000" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="usdRate">USD / Asset</label>
+            <input id="usdRate" class="input" type="text" value="2823.53" />
+          </div>
+          <div>
+            <label class="label" for="fees">Network Fee (optional)</label>
+            <input id="fees" class="input" type="text" value="0.0042" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="randAll" class="btnGhost">
+            <i class="fa-solid fa-dice" style="margin-right:8px;"></i>
+            Randomize IDs
+          </button>
+          <button id="saveJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="loadJson" class="btnGhost">
+          <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+          Import JSON (Paste)
+        </button>
+
+        <p class="tiny">No story defaults: you can paste any hash/wallets. Randomize creates unique-looking hashes + wallets for new cases.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="page" aria-label="Crypto transaction preview">
+
+        <div class="topbar">
+          <div class="brand">
+            <div class="brandIcon" aria-hidden="true"><i class="fa-solid fa-link"></i></div>
+            <div class="brandText">
+              <div class="brandTitle" id="explorerOut">BLOCKCHAIN TRANSACTION DETAILS</div>
+              <div class="brandSub"><span id="chainOut">Custom</span> • <span id="dtOut">—</span></div>
+            </div>
+          </div>
+
+          <div class="chips">
+            <div class="chip" id="statusChip"><span class="dot"></span><strong id="statusOut">Success</strong></div>
+            <div class="chip"><i class="fa-solid fa-cube" style="color:rgba(79,140,255,.9)"></i> Block <strong id="blockOut">—</strong></div>
+          </div>
+        </div>
+
+        <div class="grid">
+          <div class="panel">
+            <div class="panelTitle"><i class="fa-solid fa-fingerprint"></i> Transaction</div>
+
+            <div class="field">
+              <div class="k">Transaction Hash</div>
+              <div class="v hash" id="hashOut">—</div>
+            </div>
+
+            <div class="field">
+              <div class="k">From</div>
+              <div class="v linkish" id="fromOut" title="Clickable style (no navigation)">—</div>
+            </div>
+
+            <div class="field">
+              <div class="k">To</div>
+              <div class="v linkish" id="toOut" title="Clickable style (no navigation)">—</div>
+            </div>
+
+            <div class="field">
+              <div class="k">Value</div>
+              <div class="v">
+                <div class="bigVal" id="valOut">—</div>
+                <div class="usd" id="usdOut">—</div>
+              </div>
+            </div>
+
+            <div class="field">
+              <div class="k">Network Fee</div>
+              <div class="v hash" id="feeOut">—</div>
+            </div>
+
+            <div class="note" id="noteOut">
+              Display only. This page mimics an explorer detail view for case documentation.
+            </div>
+          </div>
+
+          <div class="rightStats">
+            <div class="statCard">
+              <div class="statLabel"><i class="fa-solid fa-calendar"></i> Timestamp</div>
+              <div class="statValue" id="tsOut">—</div>
+              <div class="statSub">Local time as entered</div>
+            </div>
+
+            <div class="statCard">
+              <div class="statLabel"><i class="fa-solid fa-coins"></i> Asset</div>
+              <div class="statValue" id="assetOut">—</div>
+              <div class="statSub">Ticker / network unit</div>
+            </div>
+
+            <div class="statCard">
+              <div class="statLabel"><i class="fa-solid fa-chart-line"></i> USD Reference</div>
+              <div class="statValue" id="rateOut">—</div>
+              <div class="statSub">USD per asset</div>
+            </div>
+
+          </div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const chain = document.getElementById('chain');
+    const explorer = document.getElementById('explorer');
+    const txHash = document.getElementById('txHash');
+    const status = document.getElementById('status');
+    const block = document.getElementById('block');
+    const date = document.getElementById('date');
+    const time = document.getElementById('time');
+    const from = document.getElementById('from');
+    const to = document.getElementById('to');
+    const asset = document.getElementById('asset');
+    const amt = document.getElementById('amt');
+    const usdRate = document.getElementById('usdRate');
+    const fees = document.getElementById('fees');
+
+    const randAll = document.getElementById('randAll');
+    const saveJson = document.getElementById('saveJson');
+    const loadJson = document.getElementById('loadJson');
+
+    // Outputs
+    const explorerOut = document.getElementById('explorerOut');
+    const chainOut = document.getElementById('chainOut');
+    const dtOut = document.getElementById('dtOut');
+
+    const statusOut = document.getElementById('statusOut');
+    const statusChip = document.getElementById('statusChip');
+    const blockOut = document.getElementById('blockOut');
+
+    const hashOut = document.getElementById('hashOut');
+    const fromOut = document.getElementById('fromOut');
+    const toOut = document.getElementById('toOut');
+
+    const valOut = document.getElementById('valOut');
+    const usdOut = document.getElementById('usdOut');
+    const feeOut = document.getElementById('feeOut');
+
+    const tsOut = document.getElementById('tsOut');
+    const assetOut = document.getElementById('assetOut');
+    const rateOut = document.getElementById('rateOut');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function parseNum(s){
+      const n = Number(String(s).replace(/[$,]/g,'').trim());
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmtUSD(n){
+      const v = Number(n);
+      if(!Number.isFinite(v)) return "$0.00";
+      return "$" + v.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    }
+
+    function setStatusChip(value){
+      const v = value.toLowerCase();
+      statusOut.textContent = value;
+
+      statusChip.classList.remove('bad');
+      const dot = statusChip.querySelector('.dot');
+
+      if(v === "success"){
+        dot.style.background = "var(--good)";
+        statusChip.style.borderColor = "rgba(54,211,153,.35)";
+      } else if(v === "failed"){
+        dot.style.background = "var(--bad)";
+        statusChip.style.borderColor = "rgba(255,91,91,.35)";
+        statusChip.classList.add('bad');
+      } else {
+        // pending
+        dot.style.background = "rgba(255,255,255,.55)";
+        statusChip.style.borderColor = "rgba(255,255,255,.18)";
+      }
+    }
+
+    function randomHex(len, prefix="0x"){
+      const chars = "0123456789abcdef";
+      let out = prefix;
+      for(let i=0;i<len;i++) out += chars[Math.floor(Math.random()*chars.length)];
+      return out;
+    }
+
+    function shortHash(h){
+      const s = sanitize(h);
+      if(s.length <= 18) return s || "—";
+      return s.slice(0, 12) + "…" + s.slice(-10);
+    }
+
+    function build(){
+      const chainVal = (chain.value === "Custom") ? (sanitize(chain.value) || "Custom") : chain.value;
+      chainOut.textContent = chainVal;
+
+      explorerOut.textContent = sanitize(explorer.value) || "BLOCKCHAIN TRANSACTION DETAILS";
+
+      const d = sanitize(date.value) || "—";
+      const t = sanitize(time.value) || "—";
+      dtOut.textContent = (d === "—" && t === "—") ? "—" : `${d} ${t}`;
+
+      // Transaction hash (show full on hover, shortened in view like explorers)
+      const h = sanitize(txHash.value);
+      hashOut.textContent = h ? h : "—";
+      hashOut.title = h || "";
+
+      setStatusChip(sanitize(status.value) || "Success");
+      blockOut.textContent = sanitize(block.value) || "—";
+
+      const f = sanitize(from.value);
+      const toV = sanitize(to.value);
+      fromOut.textContent = f ? shortHash(f) : "—";
+      toOut.textContent = toV ? shortHash(toV) : "—";
+      fromOut.title = f || "";
+      toOut.title = toV || "";
+
+      const a = sanitize(asset.value) || "—";
+      assetOut.textContent = a;
+
+      const amount = parseNum(amt.value);
+      const rate = parseNum(usdRate.value);
+      const fee = sanitize(fees.value);
+
+      if(amount === null){
+        valOut.textContent = "—";
+        usdOut.textContent = "—";
+      } else {
+        valOut.textContent = `${amount.toLocaleString(undefined, {maximumFractionDigits: 8})} ${a}`;
+        if(rate === null) usdOut.textContent = "USD: —";
+        else usdOut.textContent = `${fmtUSD(amount * rate)} (USD est.)`;
+      }
+
+      if(fee){
+        feeOut.textContent = `${fee} ${a}`;
+      } else {
+        feeOut.textContent = "—";
+      }
+
+      tsOut.textContent = (d === "—" && t === "—") ? "—" : `${d} ${t}`;
+      rateOut.textContent = (rate === null || a === "—") ? "—" : `${fmtUSD(rate)} / ${a}`;
+    }
+
+    // Randomize button (IDs only)
+    randAll.addEventListener('click', ()=>{
+      txHash.value = randomHex(62, "0x");
+      from.value = randomHex(40, "0x");
+      to.value = randomHex(40, "0x");
+      block.value = String(Math.floor(Math.random()*9000000) + 120000);
+      build();
+    });
+
+    // JSON Save/Load
+    function getState(){
+      return {
+        chain: chain.value,
+        explorer: explorer.value,
+        txHash: txHash.value,
+        status: status.value,
+        block: block.value,
+        date: date.value,
+        time: time.value,
+        from: from.value,
+        to: to.value,
+        asset: asset.value,
+        amt: amt.value,
+        usdRate: usdRate.value,
+        fees: fees.value
+      };
+    }
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      chain.value = s.chain ?? chain.value;
+      explorer.value = s.explorer ?? explorer.value;
+      txHash.value = s.txHash ?? txHash.value;
+      status.value = s.status ?? status.value;
+      block.value = s.block ?? block.value;
+      date.value = s.date ?? date.value;
+      time.value = s.time ?? time.value;
+      from.value = s.from ?? from.value;
+      to.value = s.to ?? to.value;
+      asset.value = s.asset ?? asset.value;
+      amt.value = s.amt ?? amt.value;
+      usdRate.value = s.usdRate ?? usdRate.value;
+      fees.value = s.fees ?? fees.value;
+      build();
+    }
+
+    saveJson.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      // Try clipboard first
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    loadJson.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Live update
+    [chain, explorer, txHash, status, block, date, time, from, to, asset, amt, usdRate, fees]
+      .forEach(el=>{
+        el.addEventListener('input', build);
+        el.addEventListener('change', build);
+      });
+
+    // Init with randomized if txHash is just "0x"
+    if(sanitize(txHash.value) === "0x"){
+      txHash.value = randomHex(62, "0x");
+      from.value = randomHex(40, "0x");
+      to.value = randomHex(40, "0x");
+    }
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `crypto_transaction_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

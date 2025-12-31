@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — ALPR Readout</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --irBlack:#050505;
+      --irWhite:#f4f4f4;
+      --irGray:#bdbdbd;
+
+      --neon:#35ff74;
+      --neonDim: rgba(53,255,116,.65);
+      --danger:#ff2d2d;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:90px; resize:vertical; }
+
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    .sliderRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+    }
+    .sliderRow span{
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:var(--muted);
+      min-width:96px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--red);
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* ALPR Card */
+    .alpr{
+      width: 980px;
+      margin:0 auto;
+      background:#000;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      position:relative;
+    }
+
+    /* Top "plate image" area */
+    .plateArea{
+      position:relative;
+      background:#000;
+      padding:18px;
+    }
+
+    .plateBox{
+      width:100%;
+      aspect-ratio: 16 / 6; /* cropped look */
+      border-radius:12px;
+      overflow:hidden;
+      border:2px solid rgba(255,255,255,.10);
+      position:relative;
+      background:#222;
+    }
+
+    /* Uploaded image layer (kept inside, turned infrared) */
+    .photoLayer{
+      position:absolute;
+      inset:0;
+      background:#333;
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+
+      /* infrared / high-contrast */
+      filter:
+        grayscale(1)
+        contrast(1.55)
+        brightness(1.08)
+        blur(var(--blurPx, 0.4px));
+      transform: scale(1.02);
+    }
+
+    /* Placeholder if no image */
+    .placeholder{
+      position:absolute;
+      inset:0;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:rgba(255,255,255,.65);
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+      gap:10px;
+      z-index:2;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 30% 40%, rgba(255,255,255,.08), transparent 55%),
+        linear-gradient(180deg, rgba(255,255,255,.03), rgba(0,0,0,.15));
+    }
+
+    /* Scanline + noise to push IR vibe */
+    .scanlines{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          rgba(255,255,255,0) 0px,
+          rgba(255,255,255,0) 2px,
+          rgba(255,255,255,.05) 3px,
+          rgba(255,255,255,.05) 4px
+        );
+      opacity:.35;
+      mix-blend-mode: overlay;
+      z-index:3;
+    }
+    .noise{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity: var(--grainOpacity, .35);
+      mix-blend-mode: overlay;
+      background:
+        radial-gradient(circle, rgba(255,255,255,.18) 1px, rgba(0,0,0,0) 1.2px) 0 0 / 3px 3px,
+        radial-gradient(circle, rgba(0,0,0,.22) 1px, rgba(0,0,0,0) 1.2px) 1px 1px / 4px 4px;
+      filter: blur(0.15px);
+      z-index:4;
+    }
+    .vignette{
+      position:absolute;
+      inset:-14%;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.07), transparent 55%),
+        radial-gradient(circle at 50% 50%, rgba(0,0,0,.65), rgba(0,0,0,0) 55%);
+      opacity:.85;
+      z-index:5;
+    }
+
+    /* Top corner overlays in IR area */
+    .irOverlay{
+      position:absolute;
+      inset:0;
+      padding:14px;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.06em;
+      color:rgba(255,255,255,.9);
+      text-shadow: 0 0 8px rgba(255,255,255,.15);
+      pointer-events:none;
+      z-index:6;
+      font-size:12px;
+    }
+    .irTL{ position:absolute; top:12px; left:12px; }
+    .irTR{ position:absolute; top:12px; right:12px; text-align:right; }
+    .irTR .dot{
+      width:10px; height:10px; border-radius:50%;
+      display:inline-block; background:var(--danger);
+      box-shadow:0 0 10px rgba(255,45,45,.6);
+      margin-right:8px;
+      animation: blink 1s infinite;
+      vertical-align:middle;
+    }
+    @keyframes blink{
+      0%, 40%{ opacity:1; }
+      50%, 100%{ opacity:.2; }
+    }
+
+    /* Bottom data panel */
+    .dataPanel{
+      background: #020402;
+      border-top:1px solid rgba(255,255,255,.08);
+      padding:18px 18px 20px 18px;
+      position:relative;
+    }
+    .dataPanel::before{
+      content:"";
+      position:absolute;
+      top:0; left:0; right:0;
+      height:2px;
+      background:linear-gradient(90deg, transparent, rgba(53,255,116,.6), transparent);
+      opacity:.8;
+    }
+
+    .grid{
+      display:grid;
+      grid-template-columns: 1.2fr 1fr;
+      gap:14px;
+    }
+
+    .field{
+      border:1px solid rgba(53,255,116,.25);
+      border-radius:14px;
+      padding:12px 12px;
+      background: rgba(53,255,116,.03);
+    }
+    .k{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      color: var(--neonDim);
+      margin-bottom:6px;
+    }
+    .v{
+      color: var(--neon);
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.06em;
+      font-size:14px;
+      word-break:break-word;
+    }
+    .plateBig{
+      font-size:34px;
+      letter-spacing:.14em;
+      line-height:1.05;
+    }
+
+    .foot{
+      margin-top:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      color:rgba(53,255,116,.55);
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+    }
+
+    @media (max-width: 1160px){
+      .alpr{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .grid{ grid-template-columns:1fr; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: Control Center -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-car-burst"></i> Surveillance — ALPR Readout</h2>
+
+      <div class="cc-card">
+        <label class="label" for="photo">Upload Plate Image (from PC)</label>
+        <input id="photo" class="input" type="file" accept="image/*" />
+        <p class="tiny">Optional. If you upload, it will be rendered in high-contrast infrared (B/W).</p>
+
+        <div class="sliderRow">
+          <span>Grain</span>
+          <input id="grain" type="range" min="0" max="100" value="35" />
+        </div>
+
+        <div class="sliderRow">
+          <span>Blur</span>
+          <input id="blur" type="range" min="0" max="4" value="1" />
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="plate">License Plate</label>
+            <input id="plate" class="input" type="text" value="7KWV920" />
+          </div>
+          <div>
+            <label class="label" for="state">State</label>
+            <input id="state" class="input" type="text" value="CA" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="confidence">Confidence %</label>
+            <input id="confidence" class="input" type="text" value="98.4" />
+          </div>
+          <div>
+            <label class="label" for="timestamp">Timestamp</label>
+            <input id="timestamp" class="input" type="text" value="2025-12-30 02:22:03" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="location">Location / Intersection</label>
+        <input id="location" class="input" type="text" value="I-5 N @ Lombard St" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="coords">Lat/Long</label>
+        <input id="coords" class="input" type="text" value="45.5882, -122.7326" />
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: Live Preview -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="alpr" aria-label="ALPR license plate reader output">
+        <div class="plateArea">
+          <div class="plateBox" id="plateBox">
+            <div class="photoLayer" id="photoLayer" aria-hidden="true"></div>
+
+            <div class="placeholder" id="placeholder">
+              <i class="fa-solid fa-camera"></i>
+              <span>Plate Image (Upload Optional)</span>
+            </div>
+
+            <div class="scanlines" aria-hidden="true"></div>
+            <div class="noise" id="noise" aria-hidden="true"></div>
+            <div class="vignette" aria-hidden="true"></div>
+
+            <div class="irOverlay">
+              <div class="irTL">ALPR_CAM / IR MODE / AUTO</div>
+              <div class="irTR"><span class="dot" aria-hidden="true"></span> REC <span id="oTime">2025-12-30 02:22:03</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="dataPanel">
+          <div class="grid">
+            <div class="field">
+              <div class="k">PLATE</div>
+              <div id="oPlate" class="v plateBig">7KWV920</div>
+            </div>
+
+            <div class="field">
+              <div class="k">CONFIDENCE</div>
+              <div id="oConfidence" class="v">98.4%</div>
+            </div>
+
+            <div class="field">
+              <div class="k">STATE</div>
+              <div id="oState" class="v">CA</div>
+            </div>
+
+            <div class="field">
+              <div class="k">LOCATION</div>
+              <div id="oLocation" class="v">I-5 N @ Lombard St</div>
+              <div style="height:6px"></div>
+              <div class="k">COORDINATES</div>
+              <div id="oCoords" class="v">45.5882, -122.7326</div>
+            </div>
+          </div>
+
+          <div class="foot">
+            <div>RTG // Evidence Engine</div>
+            <div>ALPR READOUT</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const photo = document.getElementById('photo');
+    const grain = document.getElementById('grain');
+    const blur = document.getElementById('blur');
+
+    const plate = document.getElementById('plate');
+    const state = document.getElementById('state');
+    const confidence = document.getElementById('confidence');
+    const timestamp = document.getElementById('timestamp');
+    const locationName = document.getElementById('location');
+    const coords = document.getElementById('coords');
+
+    // Outputs
+    const photoLayer = document.getElementById('photoLayer');
+    const placeholder = document.getElementById('placeholder');
+    const noise = document.getElementById('noise');
+
+    const oPlate = document.getElementById('oPlate');
+    const oState = document.getElementById('oState');
+    const oConfidence = document.getElementById('oConfidence');
+    const oTime = document.getElementById('oTime');
+    const oLocation = document.getElementById('oLocation');
+    const oCoords = document.getElementById('oCoords');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function normalizePlate(p){
+      // Typical ALPR: uppercase, remove spaces
+      return sanitize(p).toUpperCase().replace(/\s+/g,'');
+    }
+
+    function applyText(){
+      oPlate.textContent = normalizePlate(plate.value) || "—";
+      oState.textContent = sanitize(state.value).toUpperCase() || "—";
+
+      const c = sanitize(confidence.value);
+      oConfidence.textContent = c ? (c.endsWith('%') ? c : `${c}%`) : "—";
+
+      oTime.textContent = sanitize(timestamp.value) || "—";
+      oLocation.textContent = sanitize(locationName.value) || "—";
+      oCoords.textContent = sanitize(coords.value) || "—";
+    }
+
+    function applyEffects(){
+      const g = Number(grain.value || 0) / 100;     // 0..1
+      const b = Number(blur.value || 0);            // px
+      noise.style.opacity = String(g);
+      document.documentElement.style.setProperty('--blurPx', `${Math.max(0, b * 0.35)}px`);
+      document.documentElement.style.setProperty('--grainOpacity', String(g));
+    }
+
+    photo.addEventListener('change', () => {
+      const file = photo.files && photo.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        photoLayer.style.backgroundImage = `url('${e.target.result}')`;
+        placeholder.style.display = 'none';
+      };
+      reader.readAsDataURL(file);
+    });
+
+    [plate, state, confidence, timestamp, locationName, coords].forEach(el=>{
+      el.addEventListener('input', applyText);
+      el.addEventListener('change', applyText);
+    });
+    [grain, blur].forEach(el=>{
+      el.addEventListener('input', applyEffects);
+      el.addEventListener('change', applyEffects);
+    });
+
+    applyText();
+    applyEffects();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#000000",
+        scale,
+        useCORS: true
+      });
+
+      const base = `alpr_readout_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

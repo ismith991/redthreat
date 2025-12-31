@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Voluntary Witness Statement</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Caveat:wght@400;600;700&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#fbfbf8;
+      --ink:#151515;
+
+      /* notebook */
+      --rule: rgba(70, 130, 180, .25); /* blue lines */
+      --margin: rgba(211, 47, 47, .35); /* red margin */
+      --shadow: rgba(0,0,0,.10);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:160px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4 */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      position:relative;
+      overflow:hidden;
+      background:var(--paper);
+      padding:26px 30px 26px 30px;
+      color:var(--ink);
+    }
+
+    /* Lined notebook paper background + red margin */
+    .paper:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        /* red margin line */
+        linear-gradient(90deg, transparent 0 78px, var(--margin) 78px 80px, transparent 80px 100%),
+        /* blue rules */
+        repeating-linear-gradient(
+          0deg,
+          transparent 0px,
+          transparent 26px,
+          var(--rule) 26px,
+          var(--rule) 27px
+        );
+      pointer-events:none;
+      opacity:1;
+    }
+
+    /* subtle page shadow / depth */
+    .paper:after{
+      content:"";
+      position:absolute;
+      inset:0;
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,.06);
+      pointer-events:none;
+    }
+
+    .doc{ position:relative; z-index:1; }
+
+    .header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      padding-bottom:10px;
+      border-bottom:2px solid rgba(0,0,0,.75);
+      margin-bottom:12px;
+    }
+
+    .hLeft{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      min-width:0;
+    }
+    .badgeIcon{
+      width:34px;height:34px;
+      border:2px solid rgba(0,0,0,.85);
+      border-radius:8px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:rgba(255,255,255,.35);
+    }
+    .badgeIcon i{ color:#111; font-size:16px; }
+
+    .titleWrap{ min-width:0; }
+    .title{
+      margin:0;
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:16px;
+      color:#111;
+    }
+    .sub{
+      margin-top:6px;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:#222;
+    }
+
+    .meta{
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      color:#222;
+      text-align:right;
+      min-width:220px;
+    }
+
+    .block{
+      margin-top:12px;
+      padding-left:92px; /* aligns with margin line */
+    }
+
+    .lead{
+      font-family:"Courier Prime", monospace;
+      font-size:13px;
+      line-height:1.7;
+      color:#111;
+      white-space:pre-wrap;
+    }
+    .lead b{ font-weight:900; }
+
+    /* Handwriting body */
+    .hand{
+      margin-top:14px;
+      padding-left:92px;
+      padding-right:16px;
+      font-family:"Caveat", "Shadows Into Light", cursive;
+      font-size:24px;
+      line-height:1.12;
+      color: rgba(20,20,20,.92);
+      white-space:pre-wrap;
+      min-height:520px;
+    }
+
+    .oath{
+      margin-top:14px;
+      padding-left:92px;
+      padding-right:16px;
+      font-family:"Courier Prime", monospace;
+      font-size:12.5px;
+      line-height:1.6;
+      color:#111;
+      border-top:1px dashed rgba(0,0,0,.35);
+      padding-top:10px;
+    }
+
+    .sig{
+      margin-top:14px;
+      padding-left:92px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      text-transform:uppercase;
+      letter-spacing:.06em;
+      color:#111;
+    }
+    .sigLine{
+      border-bottom:1px solid rgba(0,0,0,.8);
+      height:22px;
+      margin-top:8px;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .sig{ grid-template-columns: 1fr; }
+      .block, .hand, .oath, .sig{ padding-left:24px; }
+      .paper:before{
+        background:
+          linear-gradient(90deg, transparent 0 42px, var(--margin) 42px 44px, transparent 44px 100%),
+          repeating-linear-gradient(0deg, transparent 0px, transparent 26px, var(--rule) 26px, var(--rule) 27px);
+      }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-pen-nib"></i> Legal & Court — Witness Statement</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="wNameIn">Witness Name</label>
+            <input id="wNameIn" class="input" type="text" value="ALEX MORROW" />
+          </div>
+          <div>
+            <label class="label" for="wDateIn">Date</label>
+            <input id="wDateIn" class="input" type="text" value="2025-12-30" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="contactIn">Contact Info (for the form header)</label>
+        <textarea id="contactIn" class="textarea" style="min-height:90px;">Phone: (555) 013-2219
+Email: alex.morrow@example.com
+Address: 88 N. PINE ST, PORTLAND, OR</textarea>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="addressIn">Witness Address (for the statement line)</label>
+        <textarea id="addressIn" class="textarea" style="min-height:70px;">88 N. PINE ST, PORTLAND, OR 97205</textarea>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="bodyIn">Statement Body (handwriting)</label>
+        <textarea id="bodyIn" class="textarea">I was walking past the building just after nine. I heard something like a door slam, then a short argument. I didn’t see faces clearly, but I noticed a dark jacket and a limp on the person who left first.
+
+A minute later, a car started up fast and pulled away without headlights. I remember the plate ended in “21”.</textarea>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="handFontIn">Handwriting Font</label>
+        <select id="handFontIn" class="select">
+          <option value="caveat" selected>Caveat</option>
+          <option value="shadows">Shadows Into Light</option>
+        </select>
+
+        <p class="tiny">The preview writes on a lined page. Long text continues naturally (like a real statement sheet).</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Witness statement preview">
+        <div class="doc">
+          <div class="header">
+            <div class="hLeft">
+              <div class="badgeIcon"><i class="fa-solid fa-file-signature"></i></div>
+              <div class="titleWrap">
+                <h1 class="title">VOLUNTARY WITNESS STATEMENT</h1>
+                <div class="sub">Handwritten Statement Sheet</div>
+              </div>
+            </div>
+            <div class="meta">
+              <div>Date: <span id="dateOut">—</span></div>
+              <div style="margin-top:6px;">Contact: <span id="contactOut">—</span></div>
+            </div>
+          </div>
+
+          <div class="block">
+            <div class="lead" id="leadOut">I, <b>—</b>, of <b>—</b>, hereby state:</div>
+          </div>
+
+          <div class="hand" id="bodyOut"></div>
+
+          <div class="oath" id="oathOut">
+            I declare under penalty of perjury that the foregoing is true and correct to the best of my knowledge and belief.
+          </div>
+
+          <div class="sig">
+            <div>
+              Witness Signature
+              <div class="sigLine"></div>
+            </div>
+            <div>
+              Date
+              <div class="sigLine"></div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const wNameIn = document.getElementById('wNameIn');
+    const wDateIn = document.getElementById('wDateIn');
+    const contactIn = document.getElementById('contactIn');
+    const addressIn = document.getElementById('addressIn');
+    const bodyIn = document.getElementById('bodyIn');
+    const handFontIn = document.getElementById('handFontIn');
+
+    const dateOut = document.getElementById('dateOut');
+    const contactOut = document.getElementById('contactOut');
+    const leadOut = document.getElementById('leadOut');
+    const bodyOut = document.getElementById('bodyOut');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function build(){
+      const nm = sanitize(wNameIn.value) || "—";
+      const addr = sanitize(addressIn.value) || "—";
+      const dt = sanitize(wDateIn.value) || "—";
+
+      dateOut.textContent = dt;
+
+      // keep header contact short (one line-ish)
+      const c = sanitize(contactIn.value);
+      contactOut.textContent = c ? c.split("\n").join(" • ") : "—";
+
+      leadOut.innerHTML = `I, <b>${escapeHtml(nm)}</b>, of <b>${escapeHtml(addr)}</b>, hereby state:`;
+
+      bodyOut.textContent = bodyIn.value || "";
+
+      // Font switch
+      if(handFontIn.value === "shadows"){
+        bodyOut.style.fontFamily = '"Shadows Into Light", cursive';
+        bodyOut.style.fontSize = "22px";
+      } else {
+        bodyOut.style.fontFamily = '"Caveat", cursive';
+        bodyOut.style.fontSize = "24px";
+      }
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    [wNameIn, wDateIn, contactIn, addressIn, bodyIn, handFontIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    function getState(){
+      return {
+        witnessName: wNameIn.value,
+        date: wDateIn.value,
+        contact: contactIn.value,
+        address: addressIn.value,
+        body: bodyIn.value,
+        font: handFontIn.value
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      wNameIn.value = s.witnessName ?? wNameIn.value;
+      wDateIn.value = s.date ?? wDateIn.value;
+      contactIn.value = s.contact ?? contactIn.value;
+      addressIn.value = s.address ?? addressIn.value;
+      bodyIn.value = s.body ?? bodyIn.value;
+      handFontIn.value = s.font ?? handFontIn.value;
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#fbfbf8",
+        scale,
+        useCORS: true
+      });
+
+      const base = `witness_statement_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

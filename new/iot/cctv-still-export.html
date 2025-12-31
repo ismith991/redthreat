@@ -1,0 +1,539 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — CCTV Still Export</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --feedBg:#333;
+      --green:#00ff6a;
+      --rec:#ff2d2d;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:110px; resize:vertical; }
+
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    .sliderRow{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin-top:10px;
+    }
+    .sliderRow span{
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:var(--muted);
+      min-width:70px;
+    }
+    input[type="range"]{
+      width:100%;
+      accent-color: var(--red);
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* Evidence Frame */
+    .evidence{
+      width: 980px;
+      min-height: 700px;
+      margin:0 auto;
+      background:#000;
+      border-radius:14px;
+      border:1px solid rgba(255,255,255,.08);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      position:relative;
+      padding:22px;
+    }
+
+    .feed{
+      width:100%;
+      aspect-ratio: 16 / 9;
+      background: var(--feedBg);
+      border:2px solid rgba(255,255,255,.12);
+      border-radius:12px;
+      overflow:hidden;
+      position:relative;
+    }
+
+    /* image layer */
+    .photoLayer{
+      position:absolute;
+      inset:0;
+      background-color: var(--feedBg);
+      background-size: cover;
+      background-position: center;
+      background-repeat: no-repeat;
+      /* base CCTV-ish */
+      filter:
+        contrast(1.1)
+        brightness(0.95)
+        saturate(0.8)
+        blur(var(--blurPx, 0px));
+      transform: scale(1.01);
+    }
+
+    /* grain/noise layer */
+    .grainLayer{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity: var(--grainOpacity, 0.35);
+      mix-blend-mode: overlay;
+      background:
+        radial-gradient(circle, rgba(255,255,255,.14) 1px, rgba(0,0,0,0) 1.2px) 0 0 / 3px 3px,
+        radial-gradient(circle, rgba(0,0,0,.22) 1px, rgba(0,0,0,0) 1.2px) 1px 1px / 4px 4px;
+      filter: blur(0.15px);
+    }
+
+    /* scanline overlay */
+    .scanlines{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      opacity:.78;
+      mix-blend-mode:multiply;
+      background:
+        repeating-linear-gradient(
+          0deg,
+          rgba(0,0,0,0) 0px,
+          rgba(0,0,0,0) 2px,
+          rgba(0,0,0,.18) 3px,
+          rgba(0,0,0,.18) 4px
+        );
+    }
+
+    /* vignette + subtle CRT glow */
+    .vignette{
+      position:absolute;
+      inset:-12%;
+      pointer-events:none;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(255,255,255,.06), transparent 55%),
+        radial-gradient(circle at 50% 50%, rgba(0,0,0,.55), rgba(0,0,0,0) 55%);
+      opacity:.85;
+    }
+
+    .overlay{
+      position:absolute;
+      inset:0;
+      padding:14px 14px;
+      font-family:"Courier Prime", monospace;
+      color:var(--green);
+      text-shadow: 0 0 6px rgba(0,255,106,.25);
+      letter-spacing:.04em;
+      font-size:13px;
+      pointer-events:none;
+    }
+
+    .tl, .tr, .bl, .br{
+      position:absolute;
+      max-width:70%;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    .tl{ top:12px; left:12px; }
+    .tr{ top:12px; right:12px; text-align:right; }
+    .bl{ bottom:12px; left:12px; }
+    .br{ bottom:12px; right:12px; text-align:right; }
+
+    .recWrap{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      margin-right:10px;
+    }
+    .dot{
+      width:10px; height:10px;
+      border-radius:50%;
+      background:var(--rec);
+      box-shadow:0 0 8px rgba(255,45,45,.55);
+      animation: blink 1s infinite;
+    }
+    @keyframes blink{
+      0%, 40%{ opacity:1; }
+      50%, 100%{ opacity:.15; }
+    }
+
+    .metaBar{
+      margin-top:14px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      color:#bdbdbd;
+      font-size:12px;
+      letter-spacing:.06em;
+      opacity:.95;
+      flex-wrap:wrap;
+    }
+    .metaBar .tag{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 10px;
+      border-radius:999px;
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.03);
+    }
+    .metaBar i{ color:var(--red); }
+
+    @media (max-width: 1160px){
+      .evidence{ width:100%; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .evidence{ padding:16px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-video"></i> Surveillance — CCTV Still Export</h2>
+
+      <div class="cc-card">
+        <label class="label" for="photo">Upload CCTV Still (from your PC)</label>
+        <input id="photo" class="input" type="file" accept="image/*" />
+        <p class="tiny">This stays local in your browser. The still will fill the 16:9 frame.</p>
+
+        <div class="sliderRow">
+          <span>Grain</span>
+          <input id="grain" type="range" min="0" max="100" value="35" />
+        </div>
+
+        <div class="sliderRow">
+          <span>Blur</span>
+          <input id="blur" type="range" min="0" max="6" value="1" />
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="camName">Camera Name / Label</label>
+        <input id="camName" class="input" type="text" value="CAM_04 [Main Entrance]" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="timestamp">Date / Time (YYYY-MM-DD HH:MM:SS)</label>
+        <input id="timestamp" class="input" type="text" value="2025-12-30 02:18:41" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="desc">Image Description</label>
+        <textarea id="desc" class="textarea">Subject entering building.</textarea>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="evidence" aria-label="CCTV still export">
+        <div class="feed" id="feed" aria-label="Video feed frame">
+          <div class="photoLayer" id="photoLayer" aria-hidden="true"></div>
+          <div class="grainLayer" id="grainLayer" aria-hidden="true"></div>
+          <div class="scanlines" aria-hidden="true"></div>
+          <div class="vignette" aria-hidden="true"></div>
+
+          <div class="overlay">
+            <div id="oCam" class="tl">CAM_04 [Main Entrance]</div>
+
+            <div class="tr">
+              <span class="recWrap">
+                <span class="dot" aria-hidden="true"></span>
+                <span style="color:var(--rec); font-weight:900;">REC</span>
+              </span>
+              <span id="oTime">2025-12-30 02:18:41</span>
+            </div>
+
+            <div class="bl">VID: 16:9 / MODE: STILL / CH: 04</div>
+            <div class="br">EXPORT: RTG-EVIDENCE</div>
+          </div>
+        </div>
+
+        <div class="metaBar">
+          <div class="tag"><i class="fa-solid fa-file-export"></i> STILL FRAME EXPORT</div>
+          <div class="tag"><span style="color:#e0e0e0;">DESCRIPTION:</span> <span id="oDesc">Subject entering building.</span></div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const camName = document.getElementById('camName');
+    const timestamp = document.getElementById('timestamp');
+    const desc = document.getElementById('desc');
+
+    const oCam = document.getElementById('oCam');
+    const oTime = document.getElementById('oTime');
+    const oDesc = document.getElementById('oDesc');
+
+    const photo = document.getElementById('photo');
+    const photoLayer = document.getElementById('photoLayer');
+
+    const grain = document.getElementById('grain');
+    const blur = document.getElementById('blur');
+    const grainLayer = document.getElementById('grainLayer');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function applyText(){
+      oCam.textContent = sanitize(camName.value) || "—";
+      oTime.textContent = sanitize(timestamp.value) || "—";
+      oDesc.textContent = sanitize(desc.value) || "—";
+    }
+
+    function applyEffects(){
+      const g = Number(grain.value || 0) / 100;          // 0..1
+      const b = Number(blur.value || 0);                 // px
+
+      grainLayer.style.opacity = String(g);
+      document.documentElement.style.setProperty('--blurPx', `${b}px`);
+    }
+
+    photo.addEventListener('change', () => {
+      const file = photo.files && photo.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        photoLayer.style.backgroundImage = `url('${e.target.result}')`;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    [camName, timestamp, desc].forEach(el=>{
+      el.addEventListener('input', applyText);
+      el.addEventListener('change', applyText);
+    });
+    [grain, blur].forEach(el=>{
+      el.addEventListener('input', applyEffects);
+      el.addEventListener('change', applyEffects);
+    });
+
+    applyText();
+    applyEffects();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#000000",
+        scale,
+        useCORS: true
+      });
+
+      const base = `cctv_still_export_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

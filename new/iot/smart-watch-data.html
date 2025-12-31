@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Smart Watch Heart Rate Data</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --app:#0e1014;
+      --card:#141822;
+      --card2:#10131b;
+      --stroke:#242a3a;
+
+      --good:#4ade80;
+      --bad:#ff5252;
+
+      --pink:#ff2d55;   /* Apple Health-ish */
+      --cyan:#22d3ee;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:92px; resize:vertical; }
+
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* Dark app preview */
+    .phone{
+      width: 430px;
+      min-height: 860px;
+      margin:0 auto;
+      background:#000;
+      border-radius: 30px;
+      border:1px solid rgba(255,255,255,.10);
+      box-shadow: 0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      position:relative;
+    }
+
+    .statusbar{
+      height:26px;
+      background:#000;
+    }
+
+    .screen{
+      background: linear-gradient(180deg, var(--app), #090a0d);
+      height:calc(100% - 26px);
+      padding:18px 16px 16px 16px;
+      color:#e9edf5;
+    }
+
+    .head{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:14px;
+    }
+
+    .titleWrap{ display:flex; flex-direction:column; gap:6px; }
+    .title{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:13px;
+      font-family:"Courier Prime", monospace;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .title i{ color: var(--pink); }
+    .dateLine{
+      font-size:12px;
+      color:rgba(233,237,245,.72);
+      letter-spacing:.06em;
+      font-family:"Courier Prime", monospace;
+      text-transform:uppercase;
+    }
+
+    .pill{
+      border:1px solid rgba(255,255,255,.12);
+      background:rgba(255,255,255,.03);
+      padding:7px 10px;
+      border-radius:999px;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+      color:rgba(233,237,245,.72);
+      white-space:nowrap;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+    }
+    .pill .dot{
+      width:8px; height:8px;
+      border-radius:50%;
+      background:var(--pink);
+      box-shadow:0 0 10px rgba(255,45,85,.35);
+    }
+
+    .card{
+      background: linear-gradient(180deg, rgba(20,24,34,.95), rgba(16,19,27,.95));
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:18px;
+      padding:14px 14px;
+      box-shadow: 0 12px 24px rgba(0,0,0,.35);
+      margin-bottom:12px;
+    }
+
+    /* Chart */
+    .chartTop{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-end;
+      margin-bottom:12px;
+    }
+    .chartLabel{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      font-family:"Courier Prime", monospace;
+      color:rgba(233,237,245,.72);
+    }
+    .rangeHint{
+      font-size:11px;
+      font-family:"Courier Prime", monospace;
+      color:rgba(233,237,245,.55);
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      white-space:nowrap;
+    }
+
+    .chartWrap{
+      height: 260px;
+      border-radius:16px;
+      border:1px solid rgba(255,255,255,.08);
+      background:
+        radial-gradient(circle at 30% 30%, rgba(255,255,255,.04), transparent 50%),
+        linear-gradient(180deg, rgba(0,0,0,.20), rgba(0,0,0,.35));
+      padding:12px;
+      position:relative;
+      overflow:hidden;
+    }
+
+    .gridLines{
+      position:absolute; inset:0;
+      background:
+        linear-gradient(0deg, rgba(255,255,255,.06) 1px, transparent 1px) 0 0/100% 52px;
+      opacity:.55;
+      pointer-events:none;
+    }
+
+    .bars{
+      position:relative;
+      height:100%;
+      display:flex;
+      align-items:flex-end;
+      gap:6px;
+      z-index:2;
+    }
+
+    .bar{
+      flex: 1;
+      min-width: 6px;
+      border-radius: 10px 10px 4px 4px;
+      background: rgba(255,45,85,.75);
+      box-shadow: 0 0 14px rgba(255,45,85,.18);
+      position:relative;
+    }
+
+    .bar.low{
+      background: rgba(34,211,238,.60);
+      box-shadow: 0 0 14px rgba(34,211,238,.12);
+    }
+
+    .bar.zero{
+      background: rgba(255,255,255,.10);
+      box-shadow:none;
+    }
+
+    .bar.peak{
+      background: rgba(255,45,85,.95);
+      box-shadow: 0 0 18px rgba(255,45,85,.30);
+      outline: 1px solid rgba(255,45,85,.55);
+    }
+
+    .peakMarker{
+      position:absolute;
+      top:10px;
+      right:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color: rgba(255,45,85,.92);
+      display:flex;
+      align-items:center;
+      gap:8px;
+      z-index:3;
+    }
+    .peakMarker i{ font-size:12px; }
+
+    /* Stats */
+    .stats{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .stat{
+      border:1px solid rgba(255,255,255,.08);
+      border-radius:16px;
+      padding:12px 12px;
+      background:rgba(255,255,255,.02);
+    }
+    .k{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:rgba(233,237,245,.60);
+      margin-bottom:6px;
+    }
+    .v{
+      font-weight:900;
+      font-size:22px;
+      letter-spacing:.02em;
+      color:#e9edf5;
+    }
+    .subv{
+      margin-top:4px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(233,237,245,.50);
+    }
+
+    .foot{
+      margin-top:10px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      color:rgba(233,237,245,.55);
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-heart-pulse"></i> Surveillance — Smart Watch Data</h2>
+
+      <div class="cc-card">
+        <label class="label" for="date">Date</label>
+        <input id="date" class="input" type="text" value="2025-12-30" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="rates">Heart Rate Values (CSV)</label>
+        <textarea id="rates" class="textarea">70, 72, 75, 120, 140, 0</textarea>
+
+        <p class="tiny">Tip: 0 will show as a near-flat bar (sensor loss / no pulse). Highest value is highlighted as the spike.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="steps">Steps</label>
+            <input id="steps" class="input" type="text" value="5821" />
+          </div>
+          <div>
+            <label class="label" for="minmaxMode">Chart Scale</label>
+            <select id="minmaxMode" class="select">
+              <option value="auto" selected>Auto (fit to data)</option>
+              <option value="fixed">Fixed (0–200 BPM)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="phone" aria-label="Smart watch heart rate export">
+        <div class="statusbar"></div>
+
+        <div class="screen">
+          <div class="head">
+            <div class="titleWrap">
+              <div class="title"><i class="fa-solid fa-heart-pulse"></i> HEART RATE DATA</div>
+              <div class="dateLine" id="dateOut">—</div>
+            </div>
+            <div class="pill"><span class="dot" aria-hidden="true"></span> LIVE EXPORT</div>
+          </div>
+
+          <div class="card">
+            <div class="chartTop">
+              <div class="chartLabel">BPM OVER TIME</div>
+              <div class="rangeHint" id="rangeHint">SCALE: AUTO</div>
+            </div>
+
+            <div class="chartWrap" aria-label="Bar chart">
+              <div class="gridLines" aria-hidden="true"></div>
+              <div class="peakMarker" id="peakMarker" title="Peak value">
+                <i class="fa-solid fa-triangle-exclamation"></i>
+                PEAK SPIKE
+              </div>
+              <div class="bars" id="bars"></div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="stats">
+              <div class="stat">
+                <div class="k">Avg BPM</div>
+                <div class="v" id="avgOut">—</div>
+                <div class="subv" id="avgNote">Computed from valid readings</div>
+              </div>
+              <div class="stat">
+                <div class="k">Peak BPM</div>
+                <div class="v" id="peakOut">—</div>
+                <div class="subv" id="peakPos">Spike index: —</div>
+              </div>
+              <div class="stat" style="grid-column:1 / span 2;">
+                <div class="k">Steps</div>
+                <div class="v" id="stepsOut">—</div>
+                <div class="subv">Daily total</div>
+              </div>
+            </div>
+
+            <div class="foot">
+              <div>RTG // Evidence Engine</div>
+              <div id="countOut">READINGS: 0</div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const dateIn = document.getElementById('date');
+    const ratesIn = document.getElementById('rates');
+    const stepsIn = document.getElementById('steps');
+    const minmaxMode = document.getElementById('minmaxMode');
+
+    // Outputs
+    const dateOut = document.getElementById('dateOut');
+    const bars = document.getElementById('bars');
+    const avgOut = document.getElementById('avgOut');
+    const peakOut = document.getElementById('peakOut');
+    const stepsOut = document.getElementById('stepsOut');
+    const countOut = document.getElementById('countOut');
+    const rangeHint = document.getElementById('rangeHint');
+    const peakPos = document.getElementById('peakPos');
+    const peakMarker = document.getElementById('peakMarker');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function parseRates(csv){
+      // Accept "70,72, 75,120,140,0" + ignore empty tokens
+      const parts = sanitize(csv).split(',').map(x => x.trim()).filter(Boolean);
+      const values = parts.map(p => {
+        const n = Number(p);
+        return Number.isFinite(n) ? n : null;
+      }).filter(v => v !== null);
+      return values;
+    }
+
+    function formatInt(n){
+      if(!Number.isFinite(n)) return "—";
+      return String(Math.round(n));
+    }
+
+    function render(){
+      const dateStr = sanitize(dateIn.value) || "—";
+      dateOut.textContent = dateStr;
+
+      const stepsStr = sanitize(stepsIn.value) || "—";
+      stepsOut.textContent = stepsStr;
+
+      const values = parseRates(ratesIn.value);
+      countOut.textContent = `READINGS: ${values.length}`;
+
+      bars.innerHTML = "";
+
+      if(values.length === 0){
+        avgOut.textContent = "—";
+        peakOut.textContent = "—";
+        peakPos.textContent = "Spike index: —";
+        peakMarker.style.display = "none";
+        return;
+      }
+
+      // Peak (max value)
+      let peak = -Infinity;
+      let peakIdx = 0;
+      values.forEach((v,i)=>{
+        if(v > peak){
+          peak = v;
+          peakIdx = i;
+        }
+      });
+
+      // Compute avg from "valid readings": exclude 0
+      const valid = values.filter(v => v > 0);
+      const avg = valid.length ? (valid.reduce((a,b)=>a+b,0) / valid.length) : 0;
+
+      avgOut.textContent = formatInt(avg);
+      peakOut.textContent = formatInt(peak);
+      peakPos.textContent = `Spike index: ${peakIdx + 1}`;
+
+      // scaling
+      const mode = minmaxMode.value;
+      rangeHint.textContent = `SCALE: ${mode.toUpperCase()}`;
+
+      const maxVal = (mode === "fixed") ? 200 : Math.max(peak, 1);
+      const minVal = 0;
+
+      // Show marker only if peak is meaningfully high
+      peakMarker.style.display = peak > 0 ? "flex" : "none";
+
+      // Create bars
+      values.forEach((v,i)=>{
+        const bar = document.createElement('div');
+        bar.className = "bar";
+
+        // Height calc (min height so 0 isn't invisible)
+        const clamped = Math.max(minVal, Math.min(v, maxVal));
+        const pct = maxVal ? (clamped / maxVal) : 0;
+        const heightPx = Math.max(6, Math.round(pct * 100)) + "%";
+        bar.style.height = heightPx;
+
+        // Styling rules
+        if(v === 0) bar.classList.add("zero");
+        else if(v < 60) bar.classList.add("low"); // resting/low-ish look
+
+        if(i === peakIdx && peak > 0) bar.classList.add("peak");
+
+        // Tiny tooltip
+        bar.title = `Reading ${i+1}: ${v} BPM`;
+
+        bars.appendChild(bar);
+      });
+    }
+
+    [dateIn, ratesIn, stepsIn].forEach(el=>{
+      el.addEventListener('input', render);
+      el.addEventListener('change', render);
+    });
+    minmaxMode.addEventListener('change', render);
+
+    render();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `smart_watch_data_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

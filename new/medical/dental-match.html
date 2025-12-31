@@ -1,0 +1,815 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Dental Record Match</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111111;
+      --sub:#5e5e5e;
+      --rule:#e9e9e9;
+      --soft:#f6f7f9;
+
+      --blue:#0b84ff;
+      --mark:#111;
+      --warn:#c62828;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* Tooth selector grid */
+    .toolRow{
+      display:flex;
+      gap:10px;
+      align-items:center;
+      margin-bottom:10px;
+    }
+    .toolPill{
+      flex:1;
+      border:1px solid #303030;
+      background:#121212;
+      border-radius:12px;
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .toolPill b{
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:12px;
+      color:var(--muted);
+      min-width:70px;
+    }
+    .toolPill select{
+      border:none;
+      outline:none;
+      background:transparent;
+      color:var(--text);
+      width:100%;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    .teethGrid{
+      display:grid;
+      grid-template-columns: repeat(8, 1fr);
+      gap:8px;
+      margin-top:10px;
+    }
+    .toothCheck{
+      border:1px solid #303030;
+      background:#121212;
+      border-radius:12px;
+      padding:8px 8px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:8px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .toothCheck:hover{ border-color: var(--red); }
+    .toothCheck input{ accent-color: var(--red); }
+    .toothNum{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      font-size:12px;
+      color:var(--text);
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    .sheet{
+      width: 980px;
+      min-height: 760px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+    }
+    .pad{ padding:26px 30px 26px 30px; }
+
+    .top{
+      display:flex;
+      justify-content:space-between;
+      gap:14px;
+      align-items:flex-start;
+      border-bottom:1px solid var(--rule);
+      padding-bottom:12px;
+      margin-bottom:14px;
+    }
+    .h1{
+      margin:0;
+      font-weight:900;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+      display:flex;
+      align-items:center;
+      gap:10px;
+    }
+    .h1 i{ color:#111; }
+    .h2{
+      margin:6px 0 0 0;
+      color:var(--sub);
+      font-size:12px;
+    }
+
+    .legend{
+      display:flex;
+      gap:10px;
+      flex-wrap:wrap;
+      justify-content:flex-end;
+      align-items:center;
+      font-size:12px;
+      color:#333;
+    }
+    .key{
+      display:flex;
+      align-items:center;
+      gap:8px;
+      border:1px solid #e0e0e0;
+      background:var(--soft);
+      border-radius:999px;
+      padding:6px 10px;
+    }
+    .key .sym{
+      width:18px; height:18px;
+      border-radius:4px;
+      display:inline-flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:900;
+      font-family:"Courier Prime", monospace;
+      color:#111;
+      border:1px solid rgba(0,0,0,.2);
+      background:#fff;
+    }
+    .sym.crown{ border-radius:50%; }
+    .sym.fill{ background:#111; color:#fff; border-color:#111; }
+
+    .compare{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+      align-items:start;
+    }
+
+    .panel{
+      border:1px solid #dcdcdc;
+      border-radius:14px;
+      overflow:hidden;
+      background:#fff;
+    }
+    .panelHead{
+      background:var(--soft);
+      border-bottom:1px solid #e1e1e1;
+      padding:10px 12px;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+    }
+    .panelHead .t{
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+      color:#111;
+    }
+    .panelHead .tag{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      border:1px solid #dcdcdc;
+      background:#fff;
+      padding:4px 8px;
+      border-radius:999px;
+      color:#333;
+    }
+
+    /* Odontogram arc */
+    .arcWrap{
+      padding:12px;
+    }
+    svg{
+      width:100%;
+      height:320px;
+      display:block;
+      border:1px solid #ececec;
+      border-radius:12px;
+      background:#fff;
+    }
+
+    .toothRect{
+      fill:#fff;
+      stroke:#111;
+      stroke-width:1.3;
+    }
+    .toothNumSvg{
+      font-family:"Courier Prime", monospace;
+      font-size:9px;
+      fill:#111;
+      opacity:.8;
+    }
+    .markX{
+      stroke: var(--warn);
+      stroke-width:2.6;
+      stroke-linecap:round;
+    }
+    .markCrown{
+      fill: none;
+      stroke: #111;
+      stroke-width:2.2;
+    }
+    .markFill{
+      fill:#111;
+      opacity:1;
+    }
+
+    .diffBar{
+      margin-top:12px;
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      background:var(--soft);
+      padding:10px 12px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:12px;
+      color:#333;
+    }
+    .diffBar b{
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+    }
+
+    @media (max-width: 1160px){
+      .sheet{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .compare{ grid-template-columns:1fr; }
+      svg{ height:340px; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .pad{ padding:18px; }
+      .teethGrid{ grid-template-columns: repeat(6, 1fr); }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-tooth"></i> Medical — Dental Record Match</h2>
+
+      <div class="cc-card">
+        <div class="toolRow">
+          <div class="toolPill">
+            <b>Chart</b>
+            <select id="activeChart">
+              <option value="AM" selected>Ante-Mortem</option>
+              <option value="PM">Post-Mortem</option>
+            </select>
+          </div>
+
+          <div class="toolPill">
+            <b>Status</b>
+            <select id="statusMode">
+              <option value="missing">Missing (X)</option>
+              <option value="crown">Crown (○)</option>
+              <option value="filling">Filling (■)</option>
+              <option value="clear" selected>Clear (None)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="row">
+          <button id="applyBtn" class="btn"><i class="fa-solid fa-check" style="margin-right:8px"></i>Apply to Selected Teeth</button>
+          <button id="resetBtn" class="ghost"><i class="fa-solid fa-rotate-left" style="margin-right:8px"></i>Reset Both Charts</button>
+        </div>
+
+        <p class="tiny">Select teeth below using the checkboxes, choose status, choose chart, then Apply.</p>
+
+        <div id="teethGrid" class="teethGrid" aria-label="Tooth selection grid"></div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="input">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="input">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="sheet" aria-label="Forensic Odontogram Comparison">
+        <div class="pad">
+
+          <div class="top">
+            <div>
+              <div class="h1"><i class="fa-solid fa-tooth" aria-hidden="true"></i> Forensic Odontogram — Dental Match</div>
+              <div class="h2">Comparison view: Ante-Mortem records vs Post-Mortem findings (Teeth 1–32)</div>
+            </div>
+
+            <div class="legend" aria-label="Legend">
+              <div class="key"><span class="sym">X</span> Missing</div>
+              <div class="key"><span class="sym crown">○</span> Crown</div>
+              <div class="key"><span class="sym fill">■</span> Filling</div>
+            </div>
+          </div>
+
+          <div class="compare">
+            <div class="panel">
+              <div class="panelHead">
+                <div class="t">Ante-Mortem</div>
+                <div class="tag">Dental Records</div>
+              </div>
+              <div class="arcWrap">
+                <svg id="svgAM" viewBox="0 0 760 320" aria-label="Ante-mortem odontogram"></svg>
+              </div>
+            </div>
+
+            <div class="panel">
+              <div class="panelHead">
+                <div class="t">Post-Mortem</div>
+                <div class="tag">Body Exam</div>
+              </div>
+              <div class="arcWrap">
+                <svg id="svgPM" viewBox="0 0 760 320" aria-label="Post-mortem odontogram"></svg>
+              </div>
+            </div>
+          </div>
+
+          <div class="diffBar">
+            <div><b>MATCH COUNT</b>: <span id="matchCount">0</span> / 32 teeth identical</div>
+            <div><b>DIFFERENCES</b>: <span id="diffCount">32</span></div>
+          </div>
+
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ====== State ======
+    // statuses: "" | "missing" | "crown" | "filling"
+    const am = Array.from({length:32}, () => "");
+    const pm = Array.from({length:32}, () => "");
+
+    // ====== Controls ======
+    const activeChart = document.getElementById("activeChart");
+    const statusMode = document.getElementById("statusMode");
+    const applyBtn = document.getElementById("applyBtn");
+    const resetBtn = document.getElementById("resetBtn");
+    const teethGrid = document.getElementById("teethGrid");
+
+    // ====== SVGs ======
+    const svgAM = document.getElementById("svgAM");
+    const svgPM = document.getElementById("svgPM");
+    const matchCountEl = document.getElementById("matchCount");
+    const diffCountEl = document.getElementById("diffCount");
+
+    function sanitize(s){ return (s ?? "").toString().trim(); }
+
+    // ====== Build tooth checkbox grid 1..32 ======
+    function buildToothGrid(){
+      teethGrid.innerHTML = "";
+      for(let i=1; i<=32; i++){
+        const label = document.createElement("label");
+        label.className = "toothCheck";
+        label.innerHTML = `
+          <span class="toothNum">${i}</span>
+          <input type="checkbox" data-tooth="${i}" />
+        `;
+        teethGrid.appendChild(label);
+      }
+    }
+
+    function selectedTeeth(){
+      const boxes = teethGrid.querySelectorAll("input[type=checkbox]:checked");
+      return Array.from(boxes).map(b => Number(b.dataset.tooth)).filter(n => Number.isFinite(n));
+    }
+
+    function clearSelections(){
+      teethGrid.querySelectorAll("input[type=checkbox]").forEach(cb => cb.checked = false);
+    }
+
+    function applyStatus(){
+      const chart = activeChart.value; // AM | PM
+      const status = statusMode.value; // missing|crown|filling|clear
+      const teeth = selectedTeeth();
+      if(teeth.length === 0) return;
+
+      const target = chart === "AM" ? am : pm;
+      teeth.forEach(n => {
+        const idx = n - 1;
+        target[idx] = (status === "clear") ? "" : status;
+      });
+
+      clearSelections();
+      renderAll();
+    }
+
+    function resetAll(){
+      for(let i=0;i<32;i++){ am[i]=""; pm[i]=""; }
+      clearSelections();
+      renderAll();
+    }
+
+    applyBtn.addEventListener("click", applyStatus);
+    resetBtn.addEventListener("click", resetAll);
+
+    // Also allow clicking the tooth square in SVG to cycle status (nice UX)
+    // cycle order: "" -> missing -> crown -> filling -> ""
+    const cycle = ["", "missing", "crown", "filling"];
+    function nextStatus(cur){
+      const i = cycle.indexOf(cur);
+      return cycle[(i + 1) % cycle.length];
+    }
+
+    // ====== SVG Draw: arc of 32 squares ======
+    function clearSvg(svg){
+      while(svg.firstChild) svg.removeChild(svg.firstChild);
+    }
+
+    function elNS(name){
+      return document.createElementNS("http://www.w3.org/2000/svg", name);
+    }
+
+    function drawOdontogram(svg, data, labelPrefix){
+      clearSvg(svg);
+
+      // Layout constants
+      const cx = 380;            // center x
+      const cy = 290;            // center y (low)
+      const radius = 230;        // arc radius
+      const count = 32;
+      const toothW = 34;
+      const toothH = 34;
+
+      // Background faint arc guide (optional)
+      const guide = elNS("path");
+      guide.setAttribute("d", describeArc(cx, cy, radius, 200, -20));
+      guide.setAttribute("fill", "none");
+      guide.setAttribute("stroke", "#e7e7e7");
+      guide.setAttribute("stroke-width", "2");
+      svg.appendChild(guide);
+
+      for(let i=0; i<count; i++){
+        const toothNum = i + 1;
+
+        // Map teeth along arc (left to right)
+        const t = i / (count - 1);             // 0..1
+        const angle = lerp(200, -20, t);       // degrees
+        const p = polarToCartesian(cx, cy, radius, angle);
+
+        const g = elNS("g");
+        g.setAttribute("data-tooth", toothNum);
+        g.setAttribute("style", "cursor:pointer;");
+        g.setAttribute("aria-label", `${labelPrefix} tooth ${toothNum}`);
+
+        // Square
+        const rect = elNS("rect");
+        rect.setAttribute("x", (p.x - toothW/2).toFixed(2));
+        rect.setAttribute("y", (p.y - toothH/2).toFixed(2));
+        rect.setAttribute("width", toothW);
+        rect.setAttribute("height", toothH);
+        rect.setAttribute("rx", "4");
+        rect.setAttribute("class", "toothRect");
+        g.appendChild(rect);
+
+        // Tooth number (small)
+        const tn = elNS("text");
+        tn.setAttribute("x", (p.x).toFixed(2));
+        tn.setAttribute("y", (p.y + toothH/2 + 12).toFixed(2));
+        tn.setAttribute("text-anchor", "middle");
+        tn.setAttribute("class", "toothNumSvg");
+        tn.textContent = toothNum;
+        g.appendChild(tn);
+
+        // Marking
+        const status = data[i];
+        if(status === "missing"){
+          const l1 = elNS("line");
+          l1.setAttribute("x1", (p.x - 10).toFixed(2));
+          l1.setAttribute("y1", (p.y - 10).toFixed(2));
+          l1.setAttribute("x2", (p.x + 10).toFixed(2));
+          l1.setAttribute("y2", (p.y + 10).toFixed(2));
+          l1.setAttribute("class", "markX");
+
+          const l2 = elNS("line");
+          l2.setAttribute("x1", (p.x + 10).toFixed(2));
+          l2.setAttribute("y1", (p.y - 10).toFixed(2));
+          l2.setAttribute("x2", (p.x - 10).toFixed(2));
+          l2.setAttribute("y2", (p.y + 10).toFixed(2));
+          l2.setAttribute("class", "markX");
+
+          g.appendChild(l1); g.appendChild(l2);
+        }
+        else if(status === "crown"){
+          const c = elNS("circle");
+          c.setAttribute("cx", p.x.toFixed(2));
+          c.setAttribute("cy", p.y.toFixed(2));
+          c.setAttribute("r", "11");
+          c.setAttribute("class", "markCrown");
+          g.appendChild(c);
+        }
+        else if(status === "filling"){
+          const f = elNS("rect");
+          f.setAttribute("x", (p.x - 8).toFixed(2));
+          f.setAttribute("y", (p.y - 8).toFixed(2));
+          f.setAttribute("width", "16");
+          f.setAttribute("height", "16");
+          f.setAttribute("rx", "2");
+          f.setAttribute("class", "markFill");
+          g.appendChild(f);
+        }
+
+        // Click-to-cycle
+        g.addEventListener("click", ()=>{
+          data[i] = nextStatus(data[i]);
+          renderAll();
+        });
+
+        svg.appendChild(g);
+      }
+    }
+
+    function renderDiff(){
+      let match = 0;
+      for(let i=0;i<32;i++){
+        if(am[i] === pm[i]) match++;
+      }
+      matchCountEl.textContent = match;
+      diffCountEl.textContent = 32 - match;
+    }
+
+    function renderAll(){
+      drawOdontogram(svgAM, am, "Ante-mortem");
+      drawOdontogram(svgPM, pm, "Post-mortem");
+      renderDiff();
+    }
+
+    // ====== Geometry helpers ======
+    function lerp(a,b,t){ return a + (b-a)*t; }
+
+    function polarToCartesian(cx, cy, r, angleDeg){
+      const rad = (angleDeg - 90) * Math.PI / 180.0;
+      return { x: cx + (r * Math.cos(rad)), y: cy + (r * Math.sin(rad)) };
+    }
+
+    function describeArc(cx, cy, r, startAngle, endAngle){
+      const start = polarToCartesian(cx, cy, r, endAngle);
+      const end = polarToCartesian(cx, cy, r, startAngle);
+      const largeArcFlag = Math.abs(endAngle - startAngle) <= 180 ? "0" : "1";
+      return ["M", start.x, start.y, "A", r, r, 0, largeArcFlag, 0, end.x, end.y].join(" ");
+    }
+
+    // ====== Init ======
+    buildToothGrid();
+
+    // Seed a few example marks
+    am[0] = "crown";      // tooth 1
+    am[2] = "filling";    // tooth 3
+    am[7] = "missing";    // tooth 8
+    pm[0] = "crown";      // match
+    pm[2] = "filling";    // match
+    pm[7] = "crown";      // difference
+    renderAll();
+
+    // ===== Export =====
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `dental_match_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

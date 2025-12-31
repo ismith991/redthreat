@@ -1,0 +1,694 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Diary Entry</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Caveat:wght@400;600;700&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#f4e7c8;         /* warm diary paper */
+      --paper2:#efe0b7;
+      --ink:#1a1a1a;
+
+      --rule: rgba(70, 130, 180, .18); /* notebook lines */
+      --margin: rgba(211, 47, 47, .25);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:200px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4-ish Diary Page */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      position:relative;
+      overflow:hidden;
+      padding:28px 30px;
+      color:var(--ink);
+
+      background:
+        radial-gradient(800px 500px at 20% 10%, rgba(255,255,255,.35), transparent 55%),
+        radial-gradient(700px 480px at 70% 85%, rgba(0,0,0,.08), transparent 55%),
+        linear-gradient(180deg, var(--paper), var(--paper2));
+    }
+
+    /* optional notebook lines + red margin */
+    .paper.lined:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(90deg, transparent 0 92px, var(--margin) 92px 94px, transparent 94px 100%),
+        repeating-linear-gradient(
+          0deg,
+          transparent 0px,
+          transparent 28px,
+          var(--rule) 28px,
+          var(--rule) 29px
+        );
+      pointer-events:none;
+      opacity:1;
+    }
+
+    .doc{ position:relative; z-index:1; }
+
+    .topRow{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:10px;
+    }
+
+    .moodChip{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:8px 12px;
+      border-radius:999px;
+      border:1px solid rgba(0,0,0,.25);
+      background:rgba(255,255,255,.35);
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+      color:#111;
+    }
+    .moodDot{
+      width:10px;height:10px;border-radius:50%;
+      background:#555;
+      box-shadow:0 0 0 2px rgba(0,0,0,.15) inset;
+    }
+
+    .date{
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#222;
+      text-align:right;
+      white-space:nowrap;
+      padding-top:4px;
+    }
+
+    .title{
+      margin:10px 0 10px;
+      font-family:"Courier Prime", monospace;
+      text-transform:uppercase;
+      letter-spacing:.14em;
+      font-size:13px;
+      color:#111;
+      opacity:.9;
+    }
+
+    .dear{
+      font-family:"Caveat", "Shadows Into Light", cursive;
+      font-size:34px;
+      margin:10px 0 4px;
+      color:#111;
+    }
+
+    .entry{
+      margin-top:10px;
+      padding-left:92px; /* aligns with margin if lined */
+      padding-right:10px;
+      font-family:"Caveat", "Shadows Into Light", cursive;
+      font-size:26px;
+      line-height:1.15;
+      white-space:pre-wrap;
+      min-height:720px;
+      color: rgba(20,20,20,.92);
+    }
+
+    /* Doodles */
+    .doodles{
+      position:absolute;
+      inset:0;
+      pointer-events:none;
+      z-index:0;
+      opacity:.25;
+      filter: blur(.1px);
+    }
+    .doodle{
+      position:absolute;
+      border:2px solid rgba(0,0,0,.25);
+      border-radius:50%;
+      transform:rotate(-8deg);
+    }
+    .doodle.line{
+      width:180px; height:0;
+      border:none;
+      border-top:2px dashed rgba(0,0,0,.25);
+      border-radius:0;
+    }
+    .doodle.heart{
+      width:34px;height:30px;
+      border:none;
+      position:absolute;
+    }
+    .doodle.heart:before,
+    .doodle.heart:after{
+      content:"";
+      position:absolute;
+      width:18px;height:28px;
+      background:transparent;
+      border:2px solid rgba(0,0,0,.25);
+      border-bottom:none;
+      border-radius:18px 18px 0 0;
+      top:2px;
+    }
+    .doodle.heart:before{ left:6px; transform:rotate(-45deg); transform-origin:bottom right; }
+    .doodle.heart:after{ left:14px; transform:rotate(45deg); transform-origin:bottom left; }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .entry{ padding-left:24px; }
+      .paper.lined:before{
+        background:
+          linear-gradient(90deg, transparent 0 52px, var(--margin) 52px 54px, transparent 54px 100%),
+          repeating-linear-gradient(0deg, transparent 0px, transparent 28px, var(--rule) 28px, var(--rule) 29px);
+      }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-book-open"></i> Personal Effects — Diary Entry</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="dateIn">Date</label>
+            <input id="dateIn" class="input" type="text" value="2025-12-30" />
+          </div>
+          <div>
+            <label class="label" for="moodIn">Mood</label>
+            <select id="moodIn" class="select">
+              <option>Angry</option>
+              <option>Sad</option>
+              <option selected>Anxious</option>
+              <option>Happy</option>
+              <option>Numb</option>
+              <option>Relieved</option>
+              <option>Confused</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="paperStyle">Paper Style</label>
+            <select id="paperStyle" class="select">
+              <option value="lined" selected>Lined notebook</option>
+              <option value="plain">Old paper (no lines)</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="handFont">Handwriting Font</label>
+            <select id="handFont" class="select">
+              <option value="caveat" selected>Caveat</option>
+              <option value="shadows">Shadows Into Light</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="entryIn">Entry Text</label>
+        <textarea id="entryIn" class="textarea">Dear Diary,
+
+I swear something is off. The way he smiled today… it wasn’t normal. Like he already knew how this ends.
+
+I keep replaying the sound from the hallway. Two steps. Pause. Then a soft click like metal on metal.
+
+I need to trust my gut.</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="randomDoodles" class="btnGhost">
+            <i class="fa-solid fa-shapes" style="margin-right:8px;"></i>
+            Randomize Doodles
+          </button>
+          <button id="toggleDoodles" class="btnGhost">
+            <i class="fa-solid fa-eye-slash" style="margin-right:8px;"></i>
+            Toggle Doodles
+          </button>
+        </div>
+
+        <p class="tiny">Everything is customizable for different stories: date format, mood, paper style, font, and doodles.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper lined" aria-label="Diary entry preview">
+        <div class="doodles" id="doodlesLayer" aria-hidden="true"></div>
+
+        <div class="doc">
+          <div class="topRow">
+            <div class="moodChip" title="Mood tag">
+              <span class="moodDot" id="moodDot"></span>
+              <span id="moodOut">—</span>
+            </div>
+            <div class="date" id="dateOut">—</div>
+          </div>
+
+          <div class="title">PERSONAL JOURNAL</div>
+          <div class="dear">Dear Diary,</div>
+
+          <div class="entry" id="entryOut"></div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const dateIn = document.getElementById('dateIn');
+    const moodIn = document.getElementById('moodIn');
+    const paperStyle = document.getElementById('paperStyle');
+    const handFont = document.getElementById('handFont');
+    const entryIn = document.getElementById('entryIn');
+
+    const dateOut = document.getElementById('dateOut');
+    const moodOut = document.getElementById('moodOut');
+    const moodDot = document.getElementById('moodDot');
+    const entryOut = document.getElementById('entryOut');
+
+    const captureArea = document.getElementById('captureArea');
+    const doodlesLayer = document.getElementById('doodlesLayer');
+
+    const randomDoodlesBtn = document.getElementById('randomDoodles');
+    const toggleDoodlesBtn = document.getElementById('toggleDoodles');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    let doodlesVisible = true;
+    let doodleSeed = 1;
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function moodColor(m){
+      const x = (m || "").toLowerCase();
+      if(x.includes("angry")) return "#b71c1c";
+      if(x.includes("sad")) return "#1e3a8a";
+      if(x.includes("happy")) return "#2e7d32";
+      if(x.includes("anx")) return "#8e24aa";
+      if(x.includes("reliev")) return "#1565c0";
+      if(x.includes("confus")) return "#ef6c00";
+      if(x.includes("numb")) return "#424242";
+      return "#555";
+    }
+
+    function build(){
+      dateOut.textContent = sanitize(dateIn.value) || "—";
+      const m = sanitize(moodIn.value) || "—";
+      moodOut.textContent = m;
+      moodDot.style.background = moodColor(m);
+
+      // Paper style
+      if(paperStyle.value === "plain"){
+        captureArea.classList.remove("lined");
+      } else {
+        captureArea.classList.add("lined");
+      }
+
+      // Hand font
+      if(handFont.value === "shadows"){
+        entryOut.style.fontFamily = '"Shadows Into Light", cursive';
+        entryOut.style.fontSize = "24px";
+      } else {
+        entryOut.style.fontFamily = '"Caveat", cursive';
+        entryOut.style.fontSize = "26px";
+      }
+
+      // Body: remove the leading "Dear Diary," if user already wrote it to avoid double
+      const raw = (entryIn.value || "");
+      const normalized = raw.replace(/^\s*dear diary[,!:\-]*\s*\n?/i, "");
+      entryOut.textContent = normalized.trim();
+
+      // Doodles
+      renderDoodles();
+      doodlesLayer.style.display = doodlesVisible ? "block" : "none";
+    }
+
+    function rand(){
+      // deterministic-ish PRNG from seed
+      doodleSeed = (doodleSeed * 9301 + 49297) % 233280;
+      return doodleSeed / 233280;
+    }
+
+    function renderDoodles(){
+      doodlesLayer.innerHTML = "";
+
+      // 5–8 doodles
+      const count = 5 + Math.floor(rand() * 4);
+      for(let i=0;i<count;i++){
+        const typePick = rand();
+        const el = document.createElement("div");
+
+        if(typePick < 0.45){
+          el.className = "doodle";
+          const size = 28 + Math.floor(rand()*90);
+          el.style.width = size + "px";
+          el.style.height = Math.max(22, Math.floor(size*(0.75 + rand()*0.5))) + "px";
+          el.style.borderRadius = (rand() < 0.35) ? "12px" : "50%";
+        } else if(typePick < 0.75){
+          el.className = "doodle line";
+          const w = 120 + Math.floor(rand()*220);
+          el.style.width = w + "px";
+        } else {
+          el.className = "doodle heart";
+        }
+
+        const x = Math.floor(rand()*92);
+        const y = Math.floor(rand()*92);
+
+        el.style.left = x + "%";
+        el.style.top = y + "%";
+        el.style.transform = `rotate(${Math.floor(rand()*40 - 20)}deg)`;
+
+        // keep doodles subtle
+        el.style.opacity = (0.12 + rand()*0.10).toFixed(2);
+
+        doodlesLayer.appendChild(el);
+      }
+    }
+
+    [dateIn, moodIn, paperStyle, handFont, entryIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    randomDoodlesBtn.addEventListener('click', ()=>{
+      doodleSeed = Math.floor(Math.random()*100000) + 1;
+      build();
+    });
+
+    toggleDoodlesBtn.addEventListener('click', ()=>{
+      doodlesVisible = !doodlesVisible;
+      build();
+    });
+
+    // JSON
+    function getState(){
+      return {
+        date: dateIn.value,
+        mood: moodIn.value,
+        paperStyle: paperStyle.value,
+        handFont: handFont.value,
+        entry: entryIn.value,
+        doodlesVisible,
+        doodleSeed
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      dateIn.value = s.date ?? dateIn.value;
+      moodIn.value = s.mood ?? moodIn.value;
+      paperStyle.value = s.paperStyle ?? paperStyle.value;
+      handFont.value = s.handFont ?? handFont.value;
+      entryIn.value = s.entry ?? entryIn.value;
+      doodlesVisible = (typeof s.doodlesVisible === "boolean") ? s.doodlesVisible : doodlesVisible;
+      doodleSeed = (typeof s.doodleSeed === "number") ? s.doodleSeed : doodleSeed;
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: null, // keep paper gradient
+        scale,
+        useCORS: true
+      });
+
+      const base = `diary_entry_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

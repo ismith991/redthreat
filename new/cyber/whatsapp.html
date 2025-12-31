@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — WhatsApp Chat Generator</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* WhatsApp */
+      --wa-header:#075e54;
+      --wa-bg:#ece5dd;
+      --wa-me:#dcf8c6;
+      --wa-them:#ffffff;
+      --wa-system:#fff3c4;
+      --wa-system-border:#f2d27c;
+      --wa-blue:#34b7f1;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* Left Panel */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:90px; resize:vertical; }
+
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* Right Panel */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    .preview-stage{
+      max-width:1200px;
+      margin:0 auto;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+      gap:20px;
+    }
+
+    /* Phone frame */
+    .phone{
+      width:390px;               /* Android-ish */
+      height:780px;
+      border-radius:32px;
+      background:#0c0c0c;
+      border:1px solid #1d1d1d;
+      box-shadow:0 18px 45px rgba(0,0,0,.65);
+      padding:14px;
+      position:relative;
+    }
+    .screen{
+      width:100%;
+      height:100%;
+      border-radius:24px;
+      overflow:hidden;
+      background:#111;
+      position:relative;
+    }
+
+    /* WhatsApp UI */
+    .wa-header{
+      height:66px;
+      background:var(--wa-header);
+      color:#fff;
+      display:flex;
+      align-items:center;
+      padding:0 12px;
+      gap:10px;
+      position:relative;
+    }
+    .wa-header .left{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      min-width:0;
+      flex:1;
+    }
+    .wa-header .back{
+      width:28px;
+      height:28px;
+      border-radius:10px;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      cursor:default;
+      opacity:.95;
+    }
+    .wa-header .avatar{
+      width:34px;
+      height:34px;
+      border-radius:50%;
+      background:rgba(255,255,255,.18);
+      border:1px solid rgba(255,255,255,.22);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-weight:700;
+      font-size:13px;
+      letter-spacing:.02em;
+      flex:0 0 auto;
+      user-select:none;
+    }
+    .wa-header .meta{
+      min-width:0;
+      display:flex;
+      flex-direction:column;
+      gap:2px;
+    }
+    .wa-header .name{
+      font-weight:700;
+      font-size:15px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      line-height:1.1;
+    }
+    .wa-header .status{
+      font-size:12px;
+      opacity:.88;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      line-height:1.1;
+    }
+    .wa-header .right{
+      display:flex;
+      align-items:center;
+      gap:14px;
+      opacity:.95;
+      flex:0 0 auto;
+    }
+    .wa-header .right i{
+      font-size:16px;
+    }
+
+    /* Chat background: beige with subtle pattern */
+    .wa-body{
+      height:calc(100% - 66px - 64px); /* header - composer */
+      background:
+        radial-gradient(circle at 18px 18px, rgba(0,0,0,.045) 2px, transparent 2px),
+        radial-gradient(circle at 48px 52px, rgba(0,0,0,.035) 2px, transparent 2px),
+        linear-gradient(0deg, rgba(255,255,255,.00), rgba(255,255,255,.00)),
+        var(--wa-bg);
+      background-size: 72px 72px, 84px 84px, auto, auto;
+      padding:12px 10px;
+      overflow:auto;
+    }
+
+    /* System encryption message */
+    .system{
+      display:flex;
+      justify-content:center;
+      margin:2px 0 12px 0;
+    }
+    .system .pill{
+      max-width:320px;
+      background:var(--wa-system);
+      border:1px solid var(--wa-system-border);
+      color:#3a3a3a;
+      border-radius:10px;
+      padding:8px 10px;
+      font-size:12px;
+      line-height:1.35;
+      box-shadow:0 6px 16px rgba(0,0,0,.12);
+    }
+
+    /* Messages */
+    .msg{
+      display:flex;
+      margin:7px 0;
+    }
+    .msg.them{ justify-content:flex-start; }
+    .msg.me{ justify-content:flex-end; }
+
+    .bubble{
+      max-width:78%;
+      border-radius:6px; /* square-ish with slight radius */
+      padding:8px 10px 6px 10px;
+      box-shadow:0 1px 0 rgba(0,0,0,.12);
+      border:1px solid rgba(0,0,0,.05);
+      position:relative;
+      overflow:hidden;
+    }
+    .msg.them .bubble{
+      background:var(--wa-them);
+      color:#202020;
+    }
+    .msg.me .bubble{
+      background:var(--wa-me);
+      color:#202020;
+    }
+
+    .text{
+      font-size:14px;
+      line-height:1.35;
+      white-space:pre-wrap;
+      word-wrap:break-word;
+    }
+
+    .meta-line{
+      display:flex;
+      justify-content:flex-end;
+      align-items:center;
+      gap:6px;
+      margin-top:4px;
+      font-size:11px;
+      color:rgba(0,0,0,.52);
+    }
+
+    .ticks{
+      display:inline-flex;
+      align-items:center;
+      gap:2px;
+      font-size:12px;
+    }
+    .ticks .double{
+      color:var(--wa-blue); /* “double blue ticks” */
+    }
+
+    /* Composer (bottom input bar) – visual only */
+    .composer{
+      height:64px;
+      background:#0f1314;
+      border-top:1px solid rgba(255,255,255,.06);
+      display:flex;
+      align-items:center;
+      padding:10px;
+      gap:10px;
+    }
+    .composer .field{
+      flex:1;
+      height:44px;
+      border-radius:22px;
+      background:#151a1b;
+      border:1px solid rgba(255,255,255,.08);
+      display:flex;
+      align-items:center;
+      gap:10px;
+      padding:0 12px;
+      color:#d7d7d7;
+      font-size:14px;
+    }
+    .composer .field i{
+      opacity:.85;
+    }
+    .composer .mic{
+      width:44px;
+      height:44px;
+      border-radius:50%;
+      background:#128c7e;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      color:#fff;
+      box-shadow:0 10px 18px rgba(0,0,0,.35);
+      border:1px solid rgba(255,255,255,.10);
+    }
+
+    /* Mobile responsiveness */
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .preview-stage{ justify-content:flex-start; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .wa-body::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .wa-body::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .wa-body::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-shield-halved"></i> Cyber &amp; Telecom — WhatsApp Chat</h2>
+
+      <div class="cc-card">
+        <label class="label" for="contactName">Contact Name</label>
+        <input id="contactName" class="input" type="text" value="Ayesha Khan" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="lastSeen">Last Seen / Status</label>
+        <input id="lastSeen" class="input" type="text" value="Online" />
+
+        <p class="tiny">Header updates instantly. Avatar uses initials (no images).</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label">Message Builder</label>
+
+        <div class="row">
+          <div>
+            <label class="label" for="sender">Sender</label>
+            <select id="sender" class="select">
+              <option value="me">Me</option>
+              <option value="them">Them</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="autoTime">Timestamp</label>
+            <select id="autoTime" class="select">
+              <option value="now" selected>Auto (Now)</option>
+              <option value="none">None</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="messageText">Message Text</label>
+        <textarea id="messageText" class="textarea" placeholder="Type a message..."></textarea>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Message</button>
+          <button id="clearBtn" class="ghost"><i class="fa-solid fa-trash" style="margin-right:8px"></i>Clear Chat</button>
+        </div>
+
+        <p class="tiny">“Me” messages include double blue ticks automatically.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <p class="tiny">
+          Exports the <b>Live Preview</b> phone screen (right panel) as evidence.
+        </p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <div class="preview-stage">
+        <section id="captureArea" class="phone" aria-label="WhatsApp Chat Preview">
+          <div class="screen">
+            <div class="wa-header">
+              <div class="left">
+                <div class="back" title="Back"><i class="fa-solid fa-arrow-left"></i></div>
+                <div id="avatar" class="avatar">AK</div>
+                <div class="meta">
+                  <div id="nameOut" class="name">Ayesha Khan</div>
+                  <div id="statusOut" class="status">Online</div>
+                </div>
+              </div>
+              <div class="right" aria-label="Actions">
+                <i class="fa-solid fa-video" title="Video"></i>
+                <i class="fa-solid fa-phone" title="Call"></i>
+                <i class="fa-solid fa-ellipsis-vertical" title="Menu"></i>
+              </div>
+            </div>
+
+            <div id="chatBody" class="wa-body">
+              <div class="system">
+                <div class="pill">
+                  Messages are end-to-end encrypted. No one outside of this chat, not even WhatsApp, can read or listen to them.
+                </div>
+              </div>
+
+              <!-- Starter messages (optional, can be cleared) -->
+              <div class="msg them">
+                <div class="bubble">
+                  <div class="text">Are you still coming?</div>
+                  <div class="meta-line"><span class="time">16:12</span></div>
+                </div>
+              </div>
+              <div class="msg me">
+                <div class="bubble">
+                  <div class="text">Yeah. 10 minutes.</div>
+                  <div class="meta-line">
+                    <span class="time">16:13</span>
+                    <span class="ticks" title="Delivered & read">
+                      <i class="fa-solid fa-check-double double"></i>
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="composer" aria-hidden="true">
+              <div class="field">
+                <i class="fa-regular fa-face-smile"></i>
+                <span style="opacity:.75">Message</span>
+              </div>
+              <div class="mic"><i class="fa-solid fa-microphone"></i></div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+  </div>
+
+  <script>
+    // --------- Header binding ----------
+    const contactName = document.getElementById('contactName');
+    const lastSeen = document.getElementById('lastSeen');
+    const nameOut = document.getElementById('nameOut');
+    const statusOut = document.getElementById('statusOut');
+    const avatar = document.getElementById('avatar');
+
+    function initialsFromName(name){
+      const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+      if(parts.length === 0) return "??";
+      const a = parts[0][0] || "?";
+      const b = (parts.length > 1 ? parts[parts.length-1][0] : (parts[0][1] || "")) || "";
+      return (a + b).toUpperCase();
+    }
+
+    function syncHeader(){
+      const n = contactName.value || "Unknown Contact";
+      const s = lastSeen.value || "";
+      nameOut.textContent = n;
+      statusOut.textContent = s;
+      avatar.textContent = initialsFromName(n);
+    }
+
+    contactName.addEventListener('input', syncHeader);
+    lastSeen.addEventListener('input', syncHeader);
+    syncHeader();
+
+    // --------- Message Builder ----------
+    const sender = document.getElementById('sender');
+    const autoTime = document.getElementById('autoTime');
+    const messageText = document.getElementById('messageText');
+    const addBtn = document.getElementById('addBtn');
+    const clearBtn = document.getElementById('clearBtn');
+    const chatBody = document.getElementById('chatBody');
+
+    function pad(n){ return String(n).padStart(2, '0'); }
+    function nowHHMM(){
+      const d = new Date();
+      return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    }
+
+    function createMessage({ who, text, time }){
+      const wrap = document.createElement('div');
+      wrap.className = `msg ${who}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = 'bubble';
+
+      const t = document.createElement('div');
+      t.className = 'text';
+      t.textContent = text;
+
+      bubble.appendChild(t);
+
+      const meta = document.createElement('div');
+      meta.className = 'meta-line';
+
+      if(time){
+        const timeEl = document.createElement('span');
+        timeEl.className = 'time';
+        timeEl.textContent = time;
+        meta.appendChild(timeEl);
+      }
+
+      if(who === 'me'){
+        const ticks = document.createElement('span');
+        ticks.className = 'ticks';
+        ticks.title = 'Delivered & read';
+        ticks.innerHTML = `<i class="fa-solid fa-check-double double"></i>`;
+        meta.appendChild(ticks);
+      }
+
+      bubble.appendChild(meta);
+      wrap.appendChild(bubble);
+      return wrap;
+    }
+
+    function addMessage(){
+      const text = (messageText.value || "").trim();
+      if(!text) return;
+
+      const who = sender.value === 'them' ? 'them' : 'me';
+      const time = (autoTime.value === 'now') ? nowHHMM() : "";
+
+      const node = createMessage({ who, text, time });
+
+      chatBody.appendChild(node);
+
+      // Scroll to bottom
+      chatBody.scrollTop = chatBody.scrollHeight;
+
+      // Reset input
+      messageText.value = "";
+      messageText.focus();
+    }
+
+    addBtn.addEventListener('click', addMessage);
+    messageText.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter' && !e.shiftKey){
+        e.preventDefault();
+        addMessage();
+      }
+    });
+
+    clearBtn.addEventListener('click', () => {
+      // Keep the system encryption message at top
+      const systemNode = chatBody.querySelector('.system');
+      chatBody.innerHTML = "";
+      chatBody.appendChild(systemNode);
+      chatBody.scrollTop = 0;
+    });
+
+    // --------- Export Right Panel (Download Evidence) ----------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function timestamp(){
+      const d = new Date();
+      const p = (n) => String(n).padStart(2,'0');
+      return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0a0a0a",
+        scale: scale,
+        useCORS: true
+      });
+
+      const base = `whatsapp_chat_${timestamp()}`;
+
+      if(type === "jpg"){
+        const dataURL = canvas.toDataURL("image/jpeg", 0.95);
+        const a = document.createElement('a');
+        a.href = dataURL;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation: "p", unit: "pt", format: "a4" });
+
+      const imgData = canvas.toDataURL("image/jpeg", 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 28;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, "JPEG", x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

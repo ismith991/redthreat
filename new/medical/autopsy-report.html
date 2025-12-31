@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Autopsy Report</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#fdfbf7;
+      --ink:#111111;
+      --sub:#5e5e5e;
+      --rule:#e6e1d7;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:110px; resize:vertical; }
+
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* A4-ish report */
+    .report{
+      width: 840px;
+      min-height: 1120px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d9d1c3;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      font-family:"Courier Prime", monospace;
+      position:relative;
+    }
+
+    .r-pad{ padding:38px 44px 34px 44px; }
+
+    .header{
+      text-align:center;
+      margin-bottom:10px;
+    }
+    .header .h1{
+      font-weight:700;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:16px;
+      margin:0;
+    }
+    .header .h2{
+      margin:6px 0 0 0;
+      font-size:12px;
+      color:#3a3a3a;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+
+    .rule{
+      height:1px;
+      background:var(--ink);
+      opacity:.65;
+      margin:12px 0 18px 0;
+    }
+
+    /* CONFIDENTIAL stamp */
+    .stamp{
+      position:absolute;
+      top:22px;
+      right:26px;
+      border:3px solid var(--red);
+      color:var(--red);
+      padding:10px 12px;
+      border-radius:6px;
+      transform:rotate(-15deg);
+      text-transform:uppercase;
+      font-weight:900;
+      letter-spacing:.10em;
+      font-size:11px;
+      background:rgba(253,251,247,.55);
+      box-shadow:0 10px 20px rgba(0,0,0,.18);
+      pointer-events:none;
+    }
+
+    .meta{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:14px;
+      margin-bottom:16px;
+    }
+
+    .meta .box{
+      border:1px solid rgba(0,0,0,.35);
+      background:rgba(255,255,255,.35);
+      border-radius:10px;
+      padding:10px 10px;
+      min-height:52px;
+    }
+    .meta .k{
+      font-size:10px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      color:#4a4a4a;
+      font-weight:700;
+      margin-bottom:6px;
+    }
+    .meta .v{
+      font-size:13px;
+      font-weight:900;
+      color:#111;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    .section{
+      border:1px solid rgba(0,0,0,.35);
+      border-radius:12px;
+      overflow:hidden;
+      background:rgba(255,255,255,.22);
+      margin-bottom:16px;
+    }
+    .section .s-head{
+      padding:10px 12px;
+      border-bottom:1px solid rgba(0,0,0,.25);
+      background:rgba(0,0,0,.04);
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+    }
+    .section .s-body{
+      padding:12px;
+      font-size:12px;
+      line-height:1.6;
+      white-space:pre-wrap;
+    }
+
+    /* Diagram */
+    .diagram-wrap{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+      align-items:start;
+    }
+    .diagram-card{
+      border:1px solid rgba(0,0,0,.35);
+      border-radius:12px;
+      background:rgba(255,255,255,.35);
+      padding:12px;
+    }
+    .diagram-title{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .diagram-title .t{
+      font-weight:900;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      font-size:12px;
+      color:#111;
+    }
+    .diagram-title .hint{
+      font-size:10px;
+      color:#555;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+
+    svg{
+      width:100%;
+      height:420px;
+      display:block;
+      background:rgba(253,251,247,.6);
+      border:1px solid rgba(0,0,0,.20);
+      border-radius:10px;
+      cursor:crosshair;
+    }
+
+    .mark-dot{ fill: var(--red); }
+    .mark-line{ stroke: var(--ink); stroke-width:1.5; opacity:.85; }
+    .mark-label-bg{ fill: rgba(253,251,247,.92); stroke: rgba(0,0,0,.55); stroke-width:1; }
+    .mark-text{
+      fill: var(--ink);
+      font-size:10px;
+      font-weight:700;
+      letter-spacing:.02em;
+    }
+
+    .foot{
+      margin-top:18px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:11px;
+      color:#4a4a4a;
+    }
+
+    @media (max-width: 1160px){
+      .report{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .diagram-wrap{ grid-template-columns:1fr; }
+      .meta{ grid-template-columns:1fr; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .r-pad{ padding:26px 18px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-file-medical"></i> Medical — Autopsy Report</h2>
+
+      <div class="cc-card">
+        <label class="label" for="decedent">Decedent Name</label>
+        <input id="decedent" class="input" type="text" value="DOE, JOHN" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="dod">Date/Time of Death</label>
+        <input id="dod" class="input" type="text" value="2025-12-28 03:14" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="cause">Cause of Death</label>
+        <textarea id="cause" class="textarea">Pending investigation.</textarea>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="injuries">External Injuries</label>
+        <textarea id="injuries" class="textarea">Superficial abrasions to left forearm. Contusion to left lateral chest.</textarea>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="bodyPart">Add Diagram Label (Dropdown)</label>
+        <select id="bodyPart" class="select">
+          <optgroup label="Anterior">
+            <option value="A_HEAD">Head</option>
+            <option value="A_L_CHEST" selected>Left Chest</option>
+            <option value="A_R_CHEST">Right Chest</option>
+            <option value="A_ABDOMEN">Abdomen</option>
+            <option value="A_L_ARM">Left Arm</option>
+            <option value="A_R_ARM">Right Arm</option>
+            <option value="A_L_THIGH">Left Thigh</option>
+            <option value="A_R_THIGH">Right Thigh</option>
+            <option value="A_L_SHIN">Left Shin</option>
+            <option value="A_R_SHIN">Right Shin</option>
+          </optgroup>
+          <optgroup label="Posterior">
+            <option value="P_BACK_HEAD">Back of Head</option>
+            <option value="P_L_SHOULDER">Left Shoulder</option>
+            <option value="P_R_SHOULDER">Right Shoulder</option>
+            <option value="P_UPPER_BACK">Upper Back</option>
+            <option value="P_LOWER_BACK">Lower Back</option>
+            <option value="P_L_CALF">Left Calf</option>
+            <option value="P_R_CALF">Right Calf</option>
+          </optgroup>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="labelText">Label Text</label>
+        <input id="labelText" class="input" type="text" value="Contusion / bruising" />
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addLabelBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Label</button>
+          <button id="clearMarksBtn" class="ghost"><i class="fa-solid fa-eraser" style="margin-right:8px"></i>Clear Marks</button>
+        </div>
+
+        <p class="tiny">
+          You can also <b>click on the Anterior or Posterior diagram</b> to drop a label at that exact spot (uses current Label Text).
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="report" aria-label="County Medical Examiner Autopsy Report">
+        <div class="stamp">CONFIDENTIAL CASE FILE</div>
+
+        <div class="r-pad">
+          <div class="header">
+            <h1 class="h1">OFFICE OF THE CHIEF MEDICAL EXAMINER</h1>
+            <div class="h2">COUNTY OF RED THREAD</div>
+          </div>
+
+          <div class="rule"></div>
+
+          <div class="meta">
+            <div class="box">
+              <div class="k">Decedent</div>
+              <div id="decedentOut" class="v">DOE, JOHN</div>
+            </div>
+            <div class="box">
+              <div class="k">Date/Time of Death</div>
+              <div id="dodOut" class="v">2025-12-28 03:14</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="s-head">Cause of Death</div>
+            <div id="causeOut" class="s-body">Pending investigation.</div>
+          </div>
+
+          <div class="section">
+            <div class="s-head">External Injuries</div>
+            <div id="injuriesOut" class="s-body">Superficial abrasions to left forearm. Contusion to left lateral chest.</div>
+          </div>
+
+          <div class="section">
+            <div class="s-head">Body Diagram</div>
+            <div class="s-body" style="padding:12px;">
+              <div class="diagram-wrap">
+                <!-- ANTERIOR -->
+                <div class="diagram-card">
+                  <div class="diagram-title">
+                    <div class="t">Anterior View</div>
+                    <div class="hint">Click to place label</div>
+                  </div>
+
+                  <svg id="anteriorSvg" viewBox="0 0 200 420" aria-label="Anterior body diagram">
+                    <!-- Stick figure outline -->
+                    <g stroke="#111" stroke-width="2" fill="none" opacity="0.95">
+                      <circle cx="100" cy="48" r="22"></circle>
+                      <path d="M100 70 L100 220"></path>
+                      <path d="M100 105 L55 150"></path>
+                      <path d="M100 105 L145 150"></path>
+                      <path d="M55 150 L50 230"></path>
+                      <path d="M145 150 L150 230"></path>
+                      <path d="M100 220 L70 305"></path>
+                      <path d="M100 220 L130 305"></path>
+                      <path d="M70 305 L65 385"></path>
+                      <path d="M130 305 L135 385"></path>
+                      <!-- simple torso / pelvis hints -->
+                      <path d="M75 115 Q100 95 125 115"></path>
+                      <path d="M80 215 Q100 230 120 215"></path>
+                    </g>
+
+                    <!-- Label layer -->
+                    <g id="anteriorMarks"></g>
+                  </svg>
+                </div>
+
+                <!-- POSTERIOR -->
+                <div class="diagram-card">
+                  <div class="diagram-title">
+                    <div class="t">Posterior View</div>
+                    <div class="hint">Click to place label</div>
+                  </div>
+
+                  <svg id="posteriorSvg" viewBox="0 0 200 420" aria-label="Posterior body diagram">
+                    <!-- Stick figure outline -->
+                    <g stroke="#111" stroke-width="2" fill="none" opacity="0.95">
+                      <circle cx="100" cy="48" r="22"></circle>
+                      <path d="M100 70 L100 220"></path>
+                      <path d="M100 105 L55 150"></path>
+                      <path d="M100 105 L145 150"></path>
+                      <path d="M55 150 L50 230"></path>
+                      <path d="M145 150 L150 230"></path>
+                      <path d="M100 220 L70 305"></path>
+                      <path d="M100 220 L130 305"></path>
+                      <path d="M70 305 L65 385"></path>
+                      <path d="M130 305 L135 385"></path>
+                      <!-- back / shoulder hint -->
+                      <path d="M70 120 Q100 140 130 120"></path>
+                      <path d="M80 170 Q100 185 120 170"></path>
+                    </g>
+
+                    <!-- Label layer -->
+                    <g id="posteriorMarks"></g>
+                  </svg>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="foot">
+            <div><span style="color:#666;">Report ID:</span> ME-AUT-01</div>
+            <div><span style="color:#666;">Page:</span> 1 of 1</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ====== Inputs ======
+    const decedent = document.getElementById('decedent');
+    const dod = document.getElementById('dod');
+    const cause = document.getElementById('cause');
+    const injuries = document.getElementById('injuries');
+
+    const bodyPart = document.getElementById('bodyPart');
+    const labelText = document.getElementById('labelText');
+    const addLabelBtn = document.getElementById('addLabelBtn');
+    const clearMarksBtn = document.getElementById('clearMarksBtn');
+
+    // ====== Outputs ======
+    const decedentOut = document.getElementById('decedentOut');
+    const dodOut = document.getElementById('dodOut');
+    const causeOut = document.getElementById('causeOut');
+    const injuriesOut = document.getElementById('injuriesOut');
+
+    const anteriorSvg = document.getElementById('anteriorSvg');
+    const posteriorSvg = document.getElementById('posteriorSvg');
+    const anteriorMarks = document.getElementById('anteriorMarks');
+    const posteriorMarks = document.getElementById('posteriorMarks');
+
+    // ====== Mark mapping ======
+    // Coordinates in viewBox space: 0..200 (x), 0..420 (y)
+    const PARTS = {
+      // Anterior
+      A_HEAD:       { view:"A", x:100, y:48 },
+      A_L_CHEST:    { view:"A", x:85,  y:128 },
+      A_R_CHEST:    { view:"A", x:115, y:128 },
+      A_ABDOMEN:    { view:"A", x:100, y:175 },
+      A_L_ARM:      { view:"A", x:60,  y:175 },
+      A_R_ARM:      { view:"A", x:140, y:175 },
+      A_L_THIGH:    { view:"A", x:85,  y:260 },
+      A_R_THIGH:    { view:"A", x:115, y:260 },
+      A_L_SHIN:     { view:"A", x:78,  y:338 },
+      A_R_SHIN:     { view:"A", x:122, y:338 },
+
+      // Posterior
+      P_BACK_HEAD:  { view:"P", x:100, y:52 },
+      P_L_SHOULDER: { view:"P", x:78,  y:118 },
+      P_R_SHOULDER: { view:"P", x:122, y:118 },
+      P_UPPER_BACK: { view:"P", x:100, y:145 },
+      P_LOWER_BACK: { view:"P", x:100, y:195 },
+      P_L_CALF:     { view:"P", x:80,  y:342 },
+      P_R_CALF:     { view:"P", x:120, y:342 }
+    };
+
+    let marks = [];
+    let markCounter = 1;
+
+    function sanitize(s){ return (s || "").toString().trim(); }
+
+    function applyTextFields(){
+      decedentOut.textContent = sanitize(decedent.value) || "—";
+      dodOut.textContent = sanitize(dod.value) || "—";
+      causeOut.textContent = sanitize(cause.value) || "—";
+      injuriesOut.textContent = sanitize(injuries.value) || "—";
+    }
+
+    function clearSvgGroup(g){
+      while(g.firstChild) g.removeChild(g.firstChild);
+    }
+
+    function approxTextWidth(text){
+      // Courier-ish: ~6.2px per char at font-size 10 in this SVG
+      const len = (text || "").length;
+      const w = 10 + len * 6.2;
+      return Math.max(70, Math.min(170, w));
+    }
+
+    function drawMark(group, m){
+      const x = m.x, y = m.y;
+      const text = sanitize(m.text) || `MARK ${m.id}`;
+
+      const sideRight = x >= 100;
+      const tx = sideRight ? x + 24 : x - 24;      // line end x
+      const ty = y - 18;                            // line end y
+      const labelPadX = 6, labelPadY = 6;
+
+      const w = approxTextWidth(text);
+      const boxX = sideRight ? tx + 6 : (tx - 6 - w);
+      const boxY = ty - 12;
+
+      // Line
+      const line = document.createElementNS("http://www.w3.org/2000/svg","line");
+      line.setAttribute("x1", x);
+      line.setAttribute("y1", y);
+      line.setAttribute("x2", tx);
+      line.setAttribute("y2", ty);
+      line.setAttribute("class","mark-line");
+
+      // Dot
+      const dot = document.createElementNS("http://www.w3.org/2000/svg","circle");
+      dot.setAttribute("cx", x);
+      dot.setAttribute("cy", y);
+      dot.setAttribute("r", 3.4);
+      dot.setAttribute("class","mark-dot");
+
+      // Label background
+      const rect = document.createElementNS("http://www.w3.org/2000/svg","rect");
+      rect.setAttribute("x", boxX);
+      rect.setAttribute("y", boxY);
+      rect.setAttribute("width", w);
+      rect.setAttribute("height", 20);
+      rect.setAttribute("rx", 4);
+      rect.setAttribute("class","mark-label-bg");
+
+      // Text
+      const t = document.createElementNS("http://www.w3.org/2000/svg","text");
+      t.setAttribute("x", boxX + labelPadX);
+      t.setAttribute("y", boxY + 14);
+      t.setAttribute("class","mark-text");
+      t.textContent = text;
+
+      // Group wrapper (so we can delete later if needed)
+      const g = document.createElementNS("http://www.w3.org/2000/svg","g");
+      g.setAttribute("data-id", m.id);
+      g.appendChild(line);
+      g.appendChild(dot);
+      g.appendChild(rect);
+      g.appendChild(t);
+
+      group.appendChild(g);
+    }
+
+    function renderMarks(){
+      clearSvgGroup(anteriorMarks);
+      clearSvgGroup(posteriorMarks);
+
+      marks.forEach(m=>{
+        if(m.view === "A") drawMark(anteriorMarks, m);
+        else drawMark(posteriorMarks, m);
+      });
+    }
+
+    function addMark(view, x, y, text){
+      marks.push({
+        id: markCounter++,
+        view,
+        x: Math.max(8, Math.min(192, x)),
+        y: Math.max(12, Math.min(408, y)),
+        text: sanitize(text) || `MARK ${markCounter-1}`
+      });
+      renderMarks();
+    }
+
+    function addFromDropdown(){
+      const key = bodyPart.value;
+      const p = PARTS[key];
+      if(!p) return;
+      addMark(p.view, p.x, p.y, labelText.value);
+    }
+
+    function clearMarks(){
+      marks = [];
+      markCounter = 1;
+      renderMarks();
+    }
+
+    function svgPointFromEvent(svg, evt){
+      const pt = svg.createSVGPoint();
+      pt.x = evt.clientX;
+      pt.y = evt.clientY;
+      const ctm = svg.getScreenCTM();
+      if(!ctm) return {x:100,y:200};
+      const inv = ctm.inverse();
+      const loc = pt.matrixTransform(inv);
+      return { x: loc.x, y: loc.y };
+    }
+
+    // Click-to-mark
+    anteriorSvg.addEventListener('click', (e)=>{
+      const p = svgPointFromEvent(anteriorSvg, e);
+      addMark("A", p.x, p.y, labelText.value);
+    });
+    posteriorSvg.addEventListener('click', (e)=>{
+      const p = svgPointFromEvent(posteriorSvg, e);
+      addMark("P", p.x, p.y, labelText.value);
+    });
+
+    // Wire inputs
+    [decedent, dod, cause, injuries].forEach(el=>{
+      el.addEventListener('input', applyTextFields);
+      el.addEventListener('change', applyTextFields);
+    });
+
+    addLabelBtn.addEventListener('click', addFromDropdown);
+    clearMarksBtn.addEventListener('click', clearMarks);
+
+    applyTextFields();
+    // Seed one label to demonstrate
+    addFromDropdown();
+
+    // ====== Export ======
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `autopsy_report_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

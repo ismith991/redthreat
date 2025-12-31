@@ -1,0 +1,942 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Hotel Bill (Folio)</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#ffffff;
+      --ink:#111;
+      --soft:#f6f7f9;
+      --grid:#e5e7eb;
+      --head:#f3f4f6;
+      --accent:#111; /* invoice should be boring */
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:100px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* A4 */
+    .paper{
+      width: 794px;
+      min-height: 1123px;
+      background:var(--paper);
+      color:var(--ink);
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      padding:28px;
+      position:relative;
+      overflow:hidden;
+      font-family: Arial, Helvetica, sans-serif; /* requested */
+    }
+
+    .doc{ position:relative; }
+
+    .top{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:14px;
+      border-bottom:2px solid #111;
+      padding-bottom:14px;
+      margin-bottom:14px;
+    }
+    .hTitle{
+      margin:0;
+      font-size:20px;
+      letter-spacing:.02em;
+      text-transform:uppercase;
+      font-weight:800;
+    }
+    .stars{
+      margin-top:8px;
+      display:flex;
+      gap:4px;
+      color:#c9a227; /* gold-ish */
+      font-size:12px;
+    }
+    .invMeta{
+      text-align:right;
+      font-size:12px;
+      color:#222;
+      line-height:1.6;
+      min-width:240px;
+    }
+    .pill{
+      display:inline-block;
+      padding:4px 10px;
+      border:1px solid #111;
+      border-radius:999px;
+      font-size:11px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      margin-bottom:8px;
+      background:#fff;
+    }
+
+    .grid2{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:12px;
+      margin-top:10px;
+    }
+    .box{
+      border:1px solid var(--grid);
+      background:#fff;
+      padding:12px;
+    }
+    .box h3{
+      margin:0 0 8px 0;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:#111;
+    }
+    .kv{
+      display:grid;
+      grid-template-columns: 140px 1fr;
+      gap:6px 10px;
+      font-size:13px;
+      color:#111;
+    }
+    .k{ color:#333; }
+    .v{ font-weight:700; }
+
+    table{
+      width:100%;
+      border-collapse:collapse;
+      margin-top:14px;
+      font-size:13px;
+      color:#111;
+    }
+    thead th{
+      background:var(--head);
+      border:1px solid var(--grid);
+      padding:10px 10px;
+      text-align:left;
+      font-weight:800;
+      font-size:12px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+    tbody td{
+      border:1px solid var(--grid);
+      padding:9px 10px;
+      vertical-align:top;
+    }
+    tbody tr:nth-child(even) td{ background: #fafafa; }
+
+    .amt{ text-align:right; white-space:nowrap; font-variant-numeric: tabular-nums; }
+    .desc{ word-break:break-word; }
+
+    .totals{
+      margin-top:14px;
+      display:flex;
+      justify-content:flex-end;
+    }
+    .totBox{
+      width:320px;
+      border:1px solid var(--grid);
+      background:#fff;
+      padding:12px;
+    }
+    .totRow{
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-size:13px;
+      padding:6px 0;
+      border-bottom:1px dashed rgba(0,0,0,.15);
+    }
+    .totRow:last-child{ border-bottom:none; }
+    .totRow strong{ font-weight:900; }
+    .totRow .right{ font-variant-numeric: tabular-nums; }
+    .grand{
+      margin-top:8px;
+      padding-top:10px;
+      border-top:2px solid #111;
+      font-size:14px;
+    }
+
+    .footer{
+      margin-top:18px;
+      padding-top:12px;
+      border-top:1px solid var(--grid);
+      color:#222;
+      font-size:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      align-items:flex-end;
+    }
+    .thanks{
+      font-style:italic;
+    }
+
+    /* Control: Charges Builder */
+    .builder{
+      border:1px dashed #343434;
+      border-radius:14px;
+      padding:12px;
+      margin-top:12px;
+    }
+    .builderTitle{
+      font-family:"Courier Prime", monospace;
+      text-transform:uppercase;
+      letter-spacing:.10em;
+      font-size:12px;
+      color:var(--muted);
+      margin:0 0 10px;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+      .grid2{ grid-template-columns: 1fr; }
+      .invMeta{ min-width:auto; }
+      .totBox{ width:100%; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-receipt"></i> Personal Effects — Hotel Bill (Folio)</h2>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="hotelNameIn">Hotel Name</label>
+            <input id="hotelNameIn" class="input" type="text" value="RIVERSTONE GRAND HOTEL" />
+          </div>
+          <div>
+            <label class="label" for="starsIn">Star Rating</label>
+            <select id="starsIn" class="select">
+              <option>1</option><option>2</option><option>3</option><option>4</option>
+              <option selected>5</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="guestNameIn">Guest Name</label>
+            <input id="guestNameIn" class="input" type="text" value="TAYLOR GRANT" />
+          </div>
+          <div>
+            <label class="label" for="roomNoIn">Room #</label>
+            <input id="roomNoIn" class="input" type="text" value="1208" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="arriveIn">Arrival Date</label>
+            <input id="arriveIn" class="input" type="text" value="2025-11-02" />
+          </div>
+          <div>
+            <label class="label" for="departIn">Departure Date</label>
+            <input id="departIn" class="input" type="text" value="2025-11-05" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="currencyIn">Currency</label>
+            <select id="currencyIn" class="select">
+              <option value="$" selected>USD ($)</option>
+              <option value="£">GBP (£)</option>
+              <option value="€">EUR (€)</option>
+              <option value="₹">INR (₹)</option>
+              <option value="₨">NPR (₨)</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="taxRateIn">Tax Rate (%)</label>
+            <input id="taxRateIn" class="input" type="number" step="0.01" value="12" />
+          </div>
+        </div>
+
+        <p class="tiny">Everything is customizable: hotel name, stars, dates, currency, tax rate, and all charge lines.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="builder">
+          <div class="builderTitle">Add Charge Line</div>
+          <div class="row">
+            <div>
+              <label class="label" for="cDate">Date</label>
+              <input id="cDate" class="input" type="text" value="2025-11-02" />
+            </div>
+            <div>
+              <label class="label" for="cAmt">Amount</label>
+              <input id="cAmt" class="input" type="number" step="0.01" value="189.00" />
+            </div>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <label class="label" for="cDesc">Description</label>
+          <input id="cDesc" class="input" type="text" value="Room Charge (1 night)" />
+
+          <div style="height:10px"></div>
+
+          <div class="row">
+            <button id="addChargeBtn" class="btnGhost">
+              <i class="fa-solid fa-plus" style="margin-right:8px;"></i>
+              Add Charge
+            </button>
+            <button id="clearChargesBtn" class="btnGhost">
+              <i class="fa-solid fa-trash" style="margin-right:8px;"></i>
+              Clear Charges
+            </button>
+          </div>
+
+          <div style="height:10px"></div>
+
+          <button id="demoChargesBtn" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+            Generate Demo Charges
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Hotel invoice preview">
+        <div class="doc">
+          <div class="top">
+            <div>
+              <h1 class="hTitle"><span id="hotelNameOut">HOTEL</span> - INVOICE</h1>
+              <div class="stars" id="starsOut" aria-label="Star rating"></div>
+            </div>
+            <div class="invMeta">
+              <div class="pill">Folio / Checkout</div>
+              <div><strong>Guest:</strong> <span id="guestNameOut">—</span></div>
+              <div><strong>Room:</strong> <span id="roomNoOut">—</span></div>
+              <div><strong>Arrival:</strong> <span id="arriveOut">—</span></div>
+              <div><strong>Departure:</strong> <span id="departOut">—</span></div>
+            </div>
+          </div>
+
+          <div class="grid2">
+            <div class="box">
+              <h3>Guest Information</h3>
+              <div class="kv">
+                <div class="k">Guest Name</div><div class="v" id="guestNameOut2">—</div>
+                <div class="k">Room Number</div><div class="v" id="roomNoOut2">—</div>
+                <div class="k">Stay</div><div class="v"><span id="arriveOut2">—</span> to <span id="departOut2">—</span></div>
+              </div>
+            </div>
+            <div class="box">
+              <h3>Invoice Summary</h3>
+              <div class="kv">
+                <div class="k">Currency</div><div class="v" id="currencyOut">—</div>
+                <div class="k">Tax Rate</div><div class="v"><span id="taxRateOut">—</span>%</div>
+                <div class="k">Total Due</div><div class="v" id="totalDueOut">—</div>
+              </div>
+            </div>
+          </div>
+
+          <table aria-label="Charges table">
+            <thead>
+              <tr>
+                <th style="width:140px;">Date</th>
+                <th>Description</th>
+                <th style="width:140px; text-align:right;">Amount</th>
+              </tr>
+            </thead>
+            <tbody id="chargesTbody"></tbody>
+          </table>
+
+          <div class="totals">
+            <div class="totBox">
+              <div class="totRow">
+                <span>Subtotal</span>
+                <span class="right" id="subtotalOut">—</span>
+              </div>
+              <div class="totRow">
+                <span>Tax (<span id="taxRateOut2">12</span>%)</span>
+                <span class="right" id="taxOut">—</span>
+              </div>
+              <div class="totRow grand">
+                <strong>Total Due</strong>
+                <strong class="right" id="totalOut">—</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="footer">
+            <div class="thanks">Thank you for staying with us.</div>
+            <div style="text-align:right;">
+              <div>Generated for evidence purposes</div>
+              <div style="opacity:.8;">Receipt No: <span id="receiptNoOut">—</span></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const hotelNameIn = document.getElementById('hotelNameIn');
+    const starsIn = document.getElementById('starsIn');
+    const guestNameIn = document.getElementById('guestNameIn');
+    const roomNoIn = document.getElementById('roomNoIn');
+    const arriveIn = document.getElementById('arriveIn');
+    const departIn = document.getElementById('departIn');
+    const currencyIn = document.getElementById('currencyIn');
+    const taxRateIn = document.getElementById('taxRateIn');
+
+    // Builder inputs
+    const cDate = document.getElementById('cDate');
+    const cDesc = document.getElementById('cDesc');
+    const cAmt  = document.getElementById('cAmt');
+    const addChargeBtn = document.getElementById('addChargeBtn');
+    const clearChargesBtn = document.getElementById('clearChargesBtn');
+    const demoChargesBtn = document.getElementById('demoChargesBtn');
+
+    // Outputs
+    const hotelNameOut = document.getElementById('hotelNameOut');
+    const starsOut = document.getElementById('starsOut');
+
+    const guestNameOut = document.getElementById('guestNameOut');
+    const roomNoOut = document.getElementById('roomNoOut');
+    const arriveOut = document.getElementById('arriveOut');
+    const departOut = document.getElementById('departOut');
+
+    const guestNameOut2 = document.getElementById('guestNameOut2');
+    const roomNoOut2 = document.getElementById('roomNoOut2');
+    const arriveOut2 = document.getElementById('arriveOut2');
+    const departOut2 = document.getElementById('departOut2');
+
+    const currencyOut = document.getElementById('currencyOut');
+    const taxRateOut = document.getElementById('taxRateOut');
+    const totalDueOut = document.getElementById('totalDueOut');
+
+    const chargesTbody = document.getElementById('chargesTbody');
+    const subtotalOut = document.getElementById('subtotalOut');
+    const taxOut = document.getElementById('taxOut');
+    const totalOut = document.getElementById('totalOut');
+    const taxRateOut2 = document.getElementById('taxRateOut2');
+    const receiptNoOut = document.getElementById('receiptNoOut');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    // State
+    let charges = [
+      { date:"2025-11-02", desc:"Room Charge (1 night)", amt:189.00 },
+      { date:"2025-11-03", desc:"Room Charge (1 night)", amt:189.00 },
+      { date:"2025-11-04", desc:"Room Service", amt:42.50 },
+      { date:"2025-11-04", desc:"Minibar", amt:18.00 },
+      { date:"2025-11-05", desc:"Late Checkout Fee", amt:25.00 }
+    ];
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function formatMoney(symbol, n){
+      const num = Number(n);
+      if(!Number.isFinite(num)) return symbol + "0.00";
+      const abs = Math.abs(num);
+      const sign = (num < 0) ? "-" : "";
+      return `${sign}${symbol}${abs.toFixed(2)}`;
+    }
+
+    function randomReceipt(){
+      // simple, not fixed story-specific
+      const a = Math.floor(100000 + Math.random()*900000);
+      const b = Math.floor(10 + Math.random()*90);
+      return `HF-${a}-${b}`;
+    }
+
+    function renderStars(count){
+      starsOut.innerHTML = "";
+      const n = Math.max(1, Math.min(5, Number(count) || 5));
+      for(let i=0;i<n;i++){
+        const star = document.createElement("i");
+        star.className = "fa-solid fa-star";
+        starsOut.appendChild(star);
+      }
+    }
+
+    function renderCharges(symbol){
+      chargesTbody.innerHTML = "";
+      if(!charges.length){
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td colspan="3" style="padding:14px; color:#333; text-align:center;">No charges added</td>`;
+        chargesTbody.appendChild(tr);
+        return;
+      }
+
+      charges.forEach((c, idx)=>{
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td>${escapeHtml(c.date)}</td>
+          <td class="desc">${escapeHtml(c.desc)}</td>
+          <td class="amt">${escapeHtml(formatMoney(symbol, c.amt))}</td>
+        `;
+        chargesTbody.appendChild(tr);
+      });
+    }
+
+    function computeTotals(){
+      const symbol = currencyIn.value || "$";
+      const taxRate = Number(taxRateIn.value);
+      const rate = Number.isFinite(taxRate) ? (taxRate/100) : 0.12;
+
+      const subtotal = charges.reduce((s, c)=> s + (Number(c.amt) || 0), 0);
+      const tax = subtotal * rate;
+      const total = subtotal + tax;
+
+      subtotalOut.textContent = formatMoney(symbol, subtotal);
+      taxOut.textContent = formatMoney(symbol, tax);
+      totalOut.textContent = formatMoney(symbol, total);
+
+      taxRateOut.textContent = (Number.isFinite(taxRate) ? taxRate : 12).toFixed(2).replace(/\.00$/,'');
+      taxRateOut2.textContent = (Number.isFinite(taxRate) ? taxRate : 12).toFixed(2).replace(/\.00$/,'');
+      totalDueOut.textContent = formatMoney(symbol, total);
+      currencyOut.textContent = symbol;
+    }
+
+    function build(){
+      const hotel = sanitize(hotelNameIn.value) || "HOTEL";
+      hotelNameOut.textContent = hotel;
+
+      renderStars(starsIn.value);
+
+      const guest = sanitize(guestNameIn.value) || "—";
+      const room = sanitize(roomNoIn.value) || "—";
+      const ar = sanitize(arriveIn.value) || "—";
+      const dep = sanitize(departIn.value) || "—";
+
+      guestNameOut.textContent = guest;
+      roomNoOut.textContent = room;
+      arriveOut.textContent = ar;
+      departOut.textContent = dep;
+
+      guestNameOut2.textContent = guest;
+      roomNoOut2.textContent = room;
+      arriveOut2.textContent = ar;
+      departOut2.textContent = dep;
+
+      // receipt number keeps stable unless cleared/demod
+      if(!receiptNoOut.textContent || receiptNoOut.textContent === "—"){
+        receiptNoOut.textContent = randomReceipt();
+      }
+
+      renderCharges(currencyIn.value || "$");
+      computeTotals();
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    // Add/Clear/Demo
+    addChargeBtn.addEventListener('click', ()=>{
+      const d = sanitize(cDate.value) || "—";
+      const desc = sanitize(cDesc.value) || "Charge";
+      const amt = Number(cAmt.value);
+
+      if(!Number.isFinite(amt)){
+        alert("Please enter a valid amount.");
+        return;
+      }
+
+      charges.push({ date:d, desc, amt:amt });
+      build();
+    });
+
+    clearChargesBtn.addEventListener('click', ()=>{
+      charges = [];
+      receiptNoOut.textContent = randomReceipt();
+      build();
+    });
+
+    function demoList(){
+      // generic, not fixed story-specific
+      const roomRates = [159, 179, 199, 225, 249, 289];
+      const extras = [
+        { desc:"Room Service", min:18, max:74 },
+        { desc:"Breakfast", min:12, max:28 },
+        { desc:"Laundry Service", min:14, max:62 },
+        { desc:"Minibar", min:8, max:45 },
+        { desc:"Parking", min:15, max:40 },
+        { desc:"Spa Charge", min:45, max:160 },
+        { desc:"Resort Fee", min:12, max:35 }
+      ];
+
+      const start = sanitize(arriveIn.value) || "2025-11-02";
+      const end = sanitize(departIn.value) || "2025-11-05";
+
+      // simple date stepping for demo (best-effort without strict parsing)
+      const days = 3 + Math.floor(Math.random()*3); // 3–5 nights
+      const baseRate = roomRates[Math.floor(Math.random()*roomRates.length)];
+
+      const list = [];
+      for(let i=0;i<days;i++){
+        list.push({ date: shiftISODate(start, i), desc:`Room Charge (1 night)`, amt: baseRate });
+      }
+
+      const extraCount = 2 + Math.floor(Math.random()*4);
+      for(let i=0;i<extraCount;i++){
+        const e = extras[Math.floor(Math.random()*extras.length)];
+        const amt = round2(e.min + Math.random()*(e.max-e.min));
+        list.push({ date: shiftISODate(start, Math.floor(Math.random()*days)), desc: e.desc, amt });
+      }
+
+      // sort by date string
+      list.sort((a,b)=> String(a.date).localeCompare(String(b.date)));
+      return list;
+    }
+
+    function round2(n){ return Math.round(n*100)/100; }
+
+    function shiftISODate(iso, addDays){
+      // expects YYYY-MM-DD; if not, just returns original with +N note
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+      if(!m) return iso;
+      const y = Number(m[1]), mo = Number(m[2]) - 1, d = Number(m[3]);
+      const dt = new Date(Date.UTC(y, mo, d));
+      dt.setUTCDate(dt.getUTCDate() + Number(addDays || 0));
+      const yy = dt.getUTCFullYear();
+      const mm = String(dt.getUTCMonth()+1).padStart(2,'0');
+      const dd = String(dt.getUTCDate()).padStart(2,'0');
+      return `${yy}-${mm}-${dd}`;
+    }
+
+    demoChargesBtn.addEventListener('click', ()=>{
+      charges = demoList();
+      receiptNoOut.textContent = randomReceipt();
+      build();
+    });
+
+    // Live rebuild
+    [hotelNameIn, starsIn, guestNameIn, roomNoIn, arriveIn, departIn, currencyIn, taxRateIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    // JSON save/load
+    function getState(){
+      return {
+        hotelName: hotelNameIn.value,
+        stars: starsIn.value,
+        guestName: guestNameIn.value,
+        roomNo: roomNoIn.value,
+        arrival: arriveIn.value,
+        departure: departIn.value,
+        currency: currencyIn.value,
+        taxRate: taxRateIn.value,
+        receiptNo: receiptNoOut.textContent,
+        charges
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      hotelNameIn.value = s.hotelName ?? hotelNameIn.value;
+      starsIn.value = s.stars ?? starsIn.value;
+      guestNameIn.value = s.guestName ?? guestNameIn.value;
+      roomNoIn.value = s.roomNo ?? roomNoIn.value;
+      arriveIn.value = s.arrival ?? arriveIn.value;
+      departIn.value = s.departure ?? departIn.value;
+      currencyIn.value = s.currency ?? currencyIn.value;
+      taxRateIn.value = s.taxRate ?? taxRateIn.value;
+
+      charges = Array.isArray(s.charges) ? s.charges.map(x=>({
+        date: (x?.date ?? "").toString(),
+        desc: (x?.desc ?? "").toString(),
+        amt: Number(x?.amt ?? 0)
+      })) : charges;
+
+      receiptNoOut.textContent = (s.receiptNo ?? randomReceipt()).toString();
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        setState(JSON.parse(raw));
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    receiptNoOut.textContent = randomReceipt();
+    build();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `hotel_bill_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Sticky Note</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Permanent+Marker&family=Kalam:wght@300;400;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --surface:#1a1a1a;
+
+      --noteYellow:#fff740;
+      --notePink:#ff7cc6;
+      --noteBlue:#79c6ff;
+
+      --ink:#171717;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:160px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* "Desk" surface */
+    .stage{
+      width: 980px;
+      max-width: 100%;
+      min-height: 720px;
+      border-radius:18px;
+      background:
+        radial-gradient(900px 420px at 15% 10%, rgba(255,255,255,.05), transparent 55%),
+        radial-gradient(900px 420px at 85% 85%, rgba(0,0,0,.35), transparent 55%),
+        linear-gradient(180deg, #121212, var(--surface));
+      border:1px solid rgba(255,255,255,.06);
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      position:relative;
+      overflow:hidden;
+      padding:22px;
+      display:flex;
+      justify-content:center;
+      align-items:center;
+    }
+
+    /* Sticky Note */
+    .note{
+      width: 360px;
+      height: 360px;
+      background: var(--noteYellow);
+      color: var(--ink);
+      border-radius:8px;
+      position:relative;
+      transform: rotate(-2deg);
+      box-shadow:
+        0 18px 28px rgba(0,0,0,.35),
+        0 3px 0 rgba(255,255,255,.25) inset;
+      border:1px solid rgba(0,0,0,.10);
+      overflow:hidden;
+    }
+
+    /* subtle paper texture + top adhesive shading */
+    .note:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        linear-gradient(180deg, rgba(0,0,0,.08), transparent 26%),
+        radial-gradient(700px 380px at 30% 30%, rgba(255,255,255,.25), transparent 60%),
+        repeating-linear-gradient(45deg, rgba(0,0,0,.02) 0 2px, transparent 2px 6px);
+      pointer-events:none;
+      opacity:.9;
+    }
+
+    /* little curl */
+    .curl{
+      position:absolute;
+      right:-2px;
+      bottom:-2px;
+      width:90px;
+      height:90px;
+      background:rgba(255,255,255,.25);
+      border-left:1px solid rgba(0,0,0,.10);
+      border-top:1px solid rgba(0,0,0,.10);
+      transform: rotate(0deg);
+      clip-path: polygon(0 100%, 100% 0, 100% 100%);
+      box-shadow: -6px -6px 12px rgba(0,0,0,.12);
+      opacity:.8;
+    }
+
+    .noteInner{
+      position:absolute;
+      inset:0;
+      padding:22px 20px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+      z-index:1;
+    }
+
+    .noteHeader{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      opacity:.7;
+    }
+
+    .pin{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      background:rgba(255,255,255,.35);
+      border:1px solid rgba(0,0,0,.10);
+      padding:6px 10px;
+      border-radius:999px;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+      opacity:.9;
+    }
+    .pin i{ opacity:.9; }
+
+    .scribble{
+      flex:1;
+      white-space:pre-wrap;
+      word-break:break-word;
+      font-family:"Permanent Marker","Kalam",cursive;
+      font-size:34px;
+      line-height:1.05;
+      letter-spacing:.01em;
+      transform: rotate(-0.4deg);
+      text-shadow: 0 1px 0 rgba(255,255,255,.18);
+    }
+
+    .footerNote{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      opacity:.65;
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .stage{ min-height:520px; }
+      .note{ width:320px; height:320px; }
+      .scribble{ font-size:30px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-note-sticky"></i> Personal Effects — Sticky Note</h2>
+
+      <div class="cc-card">
+        <label class="label" for="colorIn">Note Color</label>
+        <select id="colorIn" class="select">
+          <option value="yellow" selected>Yellow</option>
+          <option value="pink">Pink</option>
+          <option value="blue">Blue</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="fontIn">Marker Font</label>
+        <select id="fontIn" class="select">
+          <option value="permanent" selected>Permanent Marker</option>
+          <option value="kalam">Kalam</option>
+        </select>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="rotateIn">Rotation (deg)</label>
+            <input id="rotateIn" class="input" type="number" step="0.1" value="-2" />
+          </div>
+          <div>
+            <label class="label" for="sizeIn">Size (px)</label>
+            <input id="sizeIn" class="input" type="number" step="1" value="360" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="textIn">Text Content</label>
+        <textarea id="textIn" class="textarea">DON'T FORGET
+
+Vault: 7-1-9
+Call: 555-0139</textarea>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="randomText" class="btnGhost">
+            <i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px;"></i>
+            Random Text
+          </button>
+          <button id="togglePin" class="btnGhost">
+            <i class="fa-solid fa-thumbtack" style="margin-right:8px;"></i>
+            Toggle Tag
+          </button>
+        </div>
+
+        <p class="tiny">Customizable for any story: color, font, rotation, size, and scrawled note text.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section class="stage" id="captureArea" aria-label="Sticky note preview">
+        <div class="note" id="note">
+          <div class="noteInner">
+            <div class="noteHeader">
+              <div id="tagChip" class="pin"><i class="fa-solid fa-paperclip"></i> NOTE</div>
+              <div style="text-align:right;">PERSONAL</div>
+            </div>
+            <div class="scribble" id="textOut"></div>
+            <div class="footerNote">
+              <span id="colorOut">YELLOW</span>
+              <span><i class="fa-regular fa-circle" style="margin-right:6px;"></i>STICKY</span>
+            </div>
+          </div>
+          <div class="curl" aria-hidden="true"></div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    const colorIn = document.getElementById('colorIn');
+    const fontIn = document.getElementById('fontIn');
+    const rotateIn = document.getElementById('rotateIn');
+    const sizeIn = document.getElementById('sizeIn');
+    const textIn = document.getElementById('textIn');
+
+    const note = document.getElementById('note');
+    const textOut = document.getElementById('textOut');
+    const colorOut = document.getElementById('colorOut');
+    const tagChip = document.getElementById('tagChip');
+
+    const randomTextBtn = document.getElementById('randomText');
+    const togglePinBtn = document.getElementById('togglePin');
+
+    const exportJsonBtn = document.getElementById('exportJson');
+    const importJsonBtn = document.getElementById('importJson');
+
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    let showTag = true;
+
+    function sanitize(s){ return (s ?? '').toString(); }
+
+    function setNoteColor(name){
+      const map = {
+        yellow: getComputedStyle(document.documentElement).getPropertyValue('--noteYellow').trim() || '#fff740',
+        pink:   getComputedStyle(document.documentElement).getPropertyValue('--notePink').trim() || '#ff7cc6',
+        blue:   getComputedStyle(document.documentElement).getPropertyValue('--noteBlue').trim() || '#79c6ff'
+      };
+      note.style.background = map[name] || map.yellow;
+      colorOut.textContent = (name || 'yellow').toUpperCase();
+    }
+
+    function setFont(kind){
+      if(kind === 'kalam'){
+        textOut.style.fontFamily = '"Kalam", cursive';
+        textOut.style.fontSize = '30px';
+      }else{
+        textOut.style.fontFamily = '"Permanent Marker", cursive';
+        textOut.style.fontSize = '34px';
+      }
+    }
+
+    function applySize(px){
+      const n = Number(px);
+      const size = (Number.isFinite(n) ? Math.max(220, Math.min(520, n)) : 360);
+      note.style.width = size + 'px';
+      note.style.height = size + 'px';
+    }
+
+    function applyRotation(deg){
+      const n = Number(deg);
+      const rot = Number.isFinite(n) ? Math.max(-12, Math.min(12, n)) : -2;
+      note.style.transform = `rotate(${rot}deg)`;
+    }
+
+    function build(){
+      setNoteColor(colorIn.value);
+      setFont(fontIn.value);
+      applySize(sizeIn.value);
+      applyRotation(rotateIn.value);
+
+      // keep line breaks exactly as typed
+      textOut.textContent = sanitize(textIn.value).trim() || "—";
+
+      tagChip.style.display = showTag ? "inline-flex" : "none";
+    }
+
+    [colorIn, fontIn, rotateIn, sizeIn, textIn].forEach(el=>{
+      el.addEventListener('input', build);
+      el.addEventListener('change', build);
+    });
+
+    randomTextBtn.addEventListener('click', ()=>{
+      const options = [
+        "DON'T FORGET\n\nGarage: 4-2-7\nText: 555-0142",
+        "PASSWORD:\nredthread_19\n\n(CHANGE IT)",
+        "Meet at 9.\nBack entrance.\nNo calls.",
+        "KEY UNDER\n\nTHE THIRD POT",
+        "If I go missing:\nCheck the locker.\n#B12"
+      ];
+      textIn.value = options[Math.floor(Math.random()*options.length)];
+      build();
+    });
+
+    togglePinBtn.addEventListener('click', ()=>{
+      showTag = !showTag;
+      build();
+    });
+
+    // JSON save/load
+    function getState(){
+      return {
+        color: colorIn.value,
+        font: fontIn.value,
+        rotate: rotateIn.value,
+        size: sizeIn.value,
+        text: textIn.value,
+        showTag
+      };
+    }
+
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      colorIn.value = s.color ?? colorIn.value;
+      fontIn.value = s.font ?? fontIn.value;
+      rotateIn.value = s.rotate ?? rotateIn.value;
+      sizeIn.value = s.size ?? sizeIn.value;
+      textIn.value = s.text ?? textIn.value;
+      showTag = (typeof s.showTag === "boolean") ? s.showTag : showTag;
+      build();
+    }
+
+    exportJsonBtn.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJsonBtn.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        setState(JSON.parse(raw));
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    build();
+
+    // Export
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#0b0b0b",
+        scale,
+        useCORS: true
+      });
+
+      const base = `sticky_note_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

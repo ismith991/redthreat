@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Psych Evaluation</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Caveat:wght@400;600&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Paper */
+      --paper:#f7e7a5;              /* yellow paper */
+      --paper2:#f3dc86;
+      --ink:#121212;
+      --rule: rgba(40,70,140,.22); /* blue ruled lines */
+      --margin: rgba(211,47,47,.35); /* red margin line */
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:190px; resize:vertical; }
+
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+    }
+
+    /* Notepad sheet (A4-ish) */
+    .sheet{
+      width: 860px;
+      min-height: 1120px;
+      border-radius:14px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      border:1px solid rgba(255,255,255,.06);
+      position:relative;
+      color:var(--ink);
+
+      /* === LINE + MARGIN TUNING === */
+      --marginX: 82px;        /* red margin position */
+      --lineStep: 28px;       /* spacing between blue lines */
+      --lineOffsetY: 150px;   /* push lines down so header isn't crossed */
+
+      background:
+        /* subtle paper texture */
+        radial-gradient(circle at 20% 10%, rgba(255,255,255,.20), transparent 55%),
+        radial-gradient(circle at 70% 30%, rgba(0,0,0,.07), transparent 55%),
+
+        /* red margin line */
+        linear-gradient(
+          90deg,
+          transparent 0 calc(var(--marginX) - 1px),
+          var(--margin) calc(var(--marginX) - 1px) calc(var(--marginX) + 1px),
+          transparent calc(var(--marginX) + 1px) 100%
+        ),
+
+        /* blue ruled lines */
+        repeating-linear-gradient(
+          0deg,
+          rgba(0,0,0,0) 0px,
+          rgba(0,0,0,0) calc(var(--lineStep) - 1px),
+          var(--rule) calc(var(--lineStep) - 1px),
+          var(--rule) var(--lineStep)
+        ),
+
+        /* base paper */
+        linear-gradient(180deg, var(--paper), var(--paper2));
+
+      /* Offset only the ruled-lines layer */
+      background-position:
+        0 0,
+        0 0,
+        0 0,
+        0 var(--lineOffsetY),
+        0 0;
+
+      background-repeat: no-repeat, no-repeat, no-repeat, repeat, no-repeat;
+    }
+
+    /* Move content right so it doesn't sit on the red margin */
+    .pad{ padding:34px 44px 34px calc(var(--marginX) + 22px); }
+
+    .header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:14px;
+      padding-bottom:10px;
+      border-bottom:2px solid rgba(0,0,0,.25);
+      margin-bottom:14px;
+    }
+
+    .head-left .title{
+      margin:0;
+      font-weight:900;
+      font-size:14px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-family:"Courier Prime", monospace;
+    }
+    .head-left .sub{
+      margin:8px 0 0 0;
+      font-size:12px;
+      opacity:.85;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.06em;
+    }
+
+    .stamp{
+      border:2px solid rgba(0,0,0,.55);
+      border-radius:8px;
+      padding:8px 10px;
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      background:rgba(255,255,255,.25);
+    }
+
+    .meta{
+      display:grid;
+      grid-template-columns: 1.2fr 1fr 1fr;
+      gap:12px;
+      margin-bottom:10px;
+    }
+    .meta .box{
+      background:rgba(255,255,255,.28);
+      border:1px solid rgba(0,0,0,.25);
+      border-radius:12px;
+      padding:10px 12px;
+    }
+    .k{
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      opacity:.8;
+      margin-bottom:6px;
+    }
+    .v{
+      font-weight:800;
+      font-size:15px;
+      overflow:hidden;
+      text-overflow:ellipsis;
+      white-space:nowrap;
+    }
+
+    .section{
+      margin-top:8px;
+      background:rgba(255,255,255,.18);
+      border:1px solid rgba(0,0,0,.22);
+      border-radius:14px;
+      padding:12px 14px;
+    }
+
+    .section .sTitle{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:11px;
+      opacity:.9;
+      margin-bottom:8px;
+    }
+
+    .hand{
+      font-family:"Caveat", "Shadows Into Light", cursive;
+      font-size:22px;
+      line-height:1.35;
+      letter-spacing:.02em;
+      white-space:pre-wrap;
+    }
+
+    .typed{
+      font-family:"Courier Prime", monospace;
+      font-size:14px;
+      line-height:1.65;
+      white-space:pre-wrap;
+    }
+
+    .foot{
+      position:absolute;
+      bottom:16px;
+      left:calc(var(--marginX) + 22px);
+      right:44px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      opacity:.8;
+      letter-spacing:.06em;
+    }
+
+    @media (max-width: 1160px){
+      .sheet{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .meta{ grid-template-columns:1fr; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+      .pad{ padding:22px 18px 22px calc(var(--marginX) + 18px); }
+      .foot{ left:calc(var(--marginX) + 18px); right:18px; }
+      .sheet{ min-height:980px; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: Control Center -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-notes-medical"></i> Medical — Psych Evaluation</h2>
+
+      <div class="cc-card">
+        <label class="label" for="patient">Patient Name</label>
+        <input id="patient" class="input" type="text" value="DOE, JOHN" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="date">Date</label>
+            <input id="date" class="input" type="text" value="2025-12-29" />
+          </div>
+          <div>
+            <label class="label" for="dsm">Diagnosis (DSM-5 Code)</label>
+            <input id="dsm" class="input" type="text" value="F41.1" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="demeanor">Patient Demeanor</label>
+        <input id="demeanor" class="input" type="text" value="Anxious, guarded, avoids eye contact." />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="fontMode">Notes Style</label>
+        <select id="fontMode" class="select">
+          <option value="hand" selected>Handwritten (Caveat)</option>
+          <option value="typed">Typed (Courier Prime)</option>
+        </select>
+
+        <p class="tiny">Lined paper fixed: margin no longer cuts content; ruled lines start below header.</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="notes">Session Notes</label>
+        <textarea id="notes" class="textarea">Patient reports poor sleep and persistent rumination. Denies current SI/HI. Appears tense; hands shaking during intake.
+
+Discussed timeline inconsistencies regarding whereabouts on 12/27. Patient redirected repeatedly, responded with vague answers and changed details when questioned.
+
+Plan: follow-up session scheduled. Consider collateral interview if consent obtained.</textarea>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: Live Preview -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="sheet" aria-label="Confidential patient session notes">
+        <div class="pad">
+
+          <div class="header">
+            <div class="head-left">
+              <h1 class="title">CONFIDENTIAL - PATIENT SESSION NOTES</h1>
+              <div class="sub">Psychological Evaluation / Therapist Summary</div>
+            </div>
+            <div class="stamp">FILED</div>
+          </div>
+
+          <div class="meta">
+            <div class="box">
+              <div class="k">Patient</div>
+              <div id="patientOut" class="v">DOE, JOHN</div>
+            </div>
+            <div class="box">
+              <div class="k">Date</div>
+              <div id="dateOut" class="v">2025-12-29</div>
+            </div>
+            <div class="box">
+              <div class="k">DSM-5</div>
+              <div id="dsmOut" class="v">F41.1</div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="sTitle">Patient Demeanor:</div>
+            <div id="demeanorOut" class="hand">Anxious, guarded, avoids eye contact.</div>
+          </div>
+
+          <div class="section" style="margin-top:12px;">
+            <div class="sTitle">Session Notes:</div>
+            <div id="notesOut" class="hand">...</div>
+          </div>
+
+        </div>
+
+        <div class="foot">
+          <div>RTG / Evidence Engine</div>
+          <div>Do not distribute</div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const patient = document.getElementById('patient');
+    const date = document.getElementById('date');
+    const dsm = document.getElementById('dsm');
+    const demeanor = document.getElementById('demeanor');
+    const notes = document.getElementById('notes');
+    const fontMode = document.getElementById('fontMode');
+
+    // Outputs
+    const patientOut = document.getElementById('patientOut');
+    const dateOut = document.getElementById('dateOut');
+    const dsmOut = document.getElementById('dsmOut');
+    const demeanorOut = document.getElementById('demeanorOut');
+    const notesOut = document.getElementById('notesOut');
+
+    function toText(s){ return (s ?? '').toString(); }
+
+    function applyText(){
+      patientOut.textContent = toText(patient.value).trim() || "—";
+      dateOut.textContent = toText(date.value).trim() || "—";
+      dsmOut.textContent = toText(dsm.value).trim() || "—";
+
+      const dem = toText(demeanor.value);
+      demeanorOut.textContent = dem.trim() || "—";
+
+      const n = toText(notes.value);
+      notesOut.textContent = n.trim() || "—";
+    }
+
+    function applyFontMode(){
+      const mode = fontMode.value; // hand | typed
+      const cls = (mode === "typed") ? "typed" : "hand";
+      demeanorOut.className = cls;
+      notesOut.className = cls;
+    }
+
+    [patient, date, dsm, demeanor, notes].forEach(el=>{
+      el.addEventListener('input', applyText);
+      el.addEventListener('change', applyText);
+    });
+    fontMode.addEventListener('change', applyFontMode);
+
+    applyText();
+    applyFontMode();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: null,
+        scale,
+        useCORS: true
+      });
+
+      const base = `psych_evaluation_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Shoe Print Match</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* Report page */
+      --paper:#ffffff;
+      --ink:#111111;
+      --sub:#5e5e5e;
+      --rule:#e7e7e7;
+      --chip:#f3f3f3;
+
+      /* Impression placeholders */
+      --cast:#e9ecef;
+      --castLine:#cfd6dd;
+      --castInk:#2a2a2a;
+
+      /* Status */
+      --ok:#1f8f4a;
+      --bad:#c62828;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split-Screen Layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select, .textarea{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:120px; resize:vertical; }
+    .input:focus, .select:focus, .textarea:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* Report canvas */
+    .report{
+      width: 980px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d6d6d6;
+      border-radius:12px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      overflow:hidden;
+      font-family:"Courier Prime", monospace;
+    }
+
+    .top{
+      padding:18px 18px 12px 18px;
+      border-bottom:1px solid var(--rule);
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:16px;
+    }
+
+    .title{
+      display:flex;
+      align-items:center;
+      gap:12px;
+    }
+    .title .icon{
+      width:40px;height:40px;
+      border-radius:12px;
+      border:2px solid #111;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      background:var(--chip);
+    }
+    .title .icon i{ font-size:18px; color:#111; }
+    .title .h1{
+      font-weight:700;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:15px;
+      line-height:1.1;
+    }
+    .title .h2{
+      font-size:11px;
+      color:var(--sub);
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      margin-top:3px;
+    }
+
+    .meta{
+      border:1px solid #d8d8d8;
+      border-radius:10px;
+      padding:10px 12px;
+      min-width:320px;
+      background:#fff;
+      font-size:12px;
+      line-height:1.55;
+      text-align:right;
+    }
+    .meta .k{ color:#666; }
+    .meta .v{ font-weight:700; color:#111; }
+
+    .statusbar{
+      padding:12px 18px;
+      font-weight:900;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:14px;
+      color:#fff;
+    }
+    .statusbar.ok{ background:linear-gradient(90deg, rgba(31,143,74,.95), rgba(31,143,74,.78)); }
+    .statusbar.bad{ background:linear-gradient(90deg, rgba(198,40,40,.95), rgba(198,40,40,.78)); }
+
+    .body{
+      padding:16px 18px 18px 18px;
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:16px;
+      align-items:start;
+    }
+
+    .col{
+      border:1px solid #dcdcdc;
+      border-radius:12px;
+      background:#fff;
+      padding:12px;
+    }
+    .col-head{
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      margin-bottom:10px;
+    }
+    .col-head .label{
+      margin:0;
+      color:#333;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-weight:700;
+      font-family:"Courier Prime", monospace;
+    }
+    .tag{
+      font-size:11px;
+      color:#444;
+      border:1px solid #d7d7d7;
+      background:#f6f6f6;
+      padding:4px 8px;
+      border-radius:999px;
+      letter-spacing:.04em;
+    }
+
+    /* Placeholder impression boxes */
+    .impression{
+      height:360px;
+      border-radius:12px;
+      border:2px dashed var(--castLine);
+      background:
+        linear-gradient(var(--castLine) 1px, transparent 1px),
+        linear-gradient(90deg, var(--castLine) 1px, transparent 1px),
+        var(--cast);
+      background-size: 26px 26px, 26px 26px, auto;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      position:relative;
+      overflow:hidden;
+    }
+    .impression .big{
+      font-weight:900;
+      letter-spacing:.18em;
+      text-transform:uppercase;
+      color:rgba(42,42,42,.55);
+      font-size:14px;
+      text-align:center;
+      line-height:1.4;
+    }
+    .impression .corner{
+      position:absolute;
+      top:10px;
+      left:10px;
+      font-size:11px;
+      color:rgba(42,42,42,.75);
+      background:rgba(255,255,255,.7);
+      border:1px solid rgba(0,0,0,.12);
+      padding:4px 8px;
+      border-radius:10px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+      font-weight:700;
+    }
+
+    /* Data blocks */
+    .facts{
+      margin-top:12px;
+      border-top:1px solid var(--rule);
+      padding-top:12px;
+      display:grid;
+      grid-template-columns: 1fr;
+      gap:10px;
+      font-size:12px;
+    }
+    .fact{
+      display:flex;
+      align-items:flex-start;
+      justify-content:space-between;
+      gap:10px;
+      border:1px solid #ededed;
+      background:#fff;
+      padding:10px 10px;
+      border-radius:12px;
+    }
+    .fact .k{
+      color:#666;
+      letter-spacing:.06em;
+      text-transform:uppercase;
+      font-size:11px;
+      padding-top:1px;
+      width:44%;
+    }
+    .fact .v{
+      font-weight:700;
+      color:#111;
+      text-align:right;
+      flex:1;
+    }
+
+    .notes{
+      margin-top:12px;
+      border:2px solid #111;
+      border-radius:12px;
+      padding:12px;
+      background:#fff;
+    }
+    .notes .t{
+      font-weight:700;
+      letter-spacing:.10em;
+      text-transform:uppercase;
+      font-size:12px;
+      margin-bottom:8px;
+      color:#111;
+    }
+    .notes p{
+      margin:0;
+      font-size:12px;
+      line-height:1.55;
+      white-space:pre-wrap;
+      color:#111;
+    }
+
+    .foot{
+      border-top:1px solid var(--rule);
+      padding:12px 18px;
+      font-size:11px;
+      color:#444;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      background:#fff;
+    }
+    .foot .k{ color:#777; }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .report{ width:100%; }
+    }
+    @media (max-width: 980px){
+      .body{ grid-template-columns:1fr; }
+      .meta{ min-width:0; width:100%; text-align:left; }
+      .top{ flex-direction:column; align-items:flex-start; }
+      .impression{ height:320px; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-shoe-prints"></i> Forensics — Shoe Print Match</h2>
+
+      <div class="cc-card">
+        <label class="label" for="brand">Shoe Brand</label>
+        <input id="brand" class="input" type="text" value="Nike" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="model">Model</label>
+        <input id="model" class="input" type="text" value="Air Force 1" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="size">Size</label>
+            <input id="size" class="input" type="text" value="US 10" />
+          </div>
+          <div>
+            <label class="label" for="status">Conclusion Status</label>
+            <select id="status" class="select">
+              <option selected>IDENTIFICATION</option>
+              <option>EXCLUSION</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="tiny">Status bar switches green/red. Notes appear under “Individual Characteristics”.</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label" for="notes">Wear Pattern / Cuts / Scratches (Notes)</label>
+        <textarea id="notes" class="textarea">Heel drag on lateral edge. Two parallel cuts across forefoot. Small puncture defect near toe.</textarea>
+
+        <div style="height:12px"></div>
+
+        <button id="applyBtn" class="btn"><i class="fa-solid fa-wand-magic-sparkles" style="margin-right:8px"></i>Apply</button>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="report" aria-label="Footwear Impression Comparison Report">
+
+        <div class="top">
+          <div class="title">
+            <div class="icon" aria-hidden="true">
+              <i class="fa-solid fa-shoe-prints"></i>
+            </div>
+            <div>
+              <div class="h1">Footwear Impression Comparison Report</div>
+              <div class="h2">Questioned impression vs known standard (database)</div>
+            </div>
+          </div>
+
+          <div class="meta" aria-label="Class Characteristics">
+            <div><span class="k">Brand:</span> <span id="brandOut" class="v">Nike</span></div>
+            <div><span class="k">Model:</span> <span id="modelOut" class="v">Air Force 1</span></div>
+            <div><span class="k">Size:</span> <span id="sizeOut" class="v">US 10</span></div>
+          </div>
+        </div>
+
+        <div id="statusBar" class="statusbar ok">IDENTIFICATION</div>
+
+        <div class="body">
+          <!-- Column 1 -->
+          <div class="col" aria-label="Questioned Impression">
+            <div class="col-head">
+              <div class="label">Questioned Impression</div>
+              <div class="tag">SCENE CAST</div>
+            </div>
+
+            <div class="impression">
+              <div class="corner">Q-1</div>
+              <div class="big">SCENE CAST<br><span style="font-weight:700; letter-spacing:.10em;">(placeholder)</span></div>
+            </div>
+          </div>
+
+          <!-- Column 2 -->
+          <div class="col" aria-label="Known Standard">
+            <div class="col-head">
+              <div class="label">Known Standard</div>
+              <div class="tag">DATABASE MATCH</div>
+            </div>
+
+            <div class="impression">
+              <div class="corner">K-1</div>
+              <div class="big">DATABASE MATCH<br><span style="font-weight:700; letter-spacing:.10em;">(placeholder)</span></div>
+            </div>
+
+            <div class="facts">
+              <div class="fact">
+                <div class="k">Class Characteristics</div>
+                <div id="classOut" class="v">Nike · Air Force 1 · US 10</div>
+              </div>
+            </div>
+
+            <div class="notes">
+              <div class="t">Individual Characteristics</div>
+              <p id="notesOut">Heel drag on lateral edge. Two parallel cuts across forefoot. Small puncture defect near toe.</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="foot">
+          <div><span class="k">Lab:</span> Physical Forensics</div>
+          <div><span class="k">Page:</span> 1 of 1</div>
+        </div>
+
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const brand = document.getElementById('brand');
+    const model = document.getElementById('model');
+    const size = document.getElementById('size');
+    const notes = document.getElementById('notes');
+    const status = document.getElementById('status');
+
+    // Outputs
+    const brandOut = document.getElementById('brandOut');
+    const modelOut = document.getElementById('modelOut');
+    const sizeOut = document.getElementById('sizeOut');
+    const classOut = document.getElementById('classOut');
+    const notesOut = document.getElementById('notesOut');
+    const statusBar = document.getElementById('statusBar');
+
+    const applyBtn = document.getElementById('applyBtn');
+
+    function apply(){
+      const b = (brand.value || "").trim();
+      const m = (model.value || "").trim();
+      const s = (size.value || "").trim();
+
+      brandOut.textContent = b || "—";
+      modelOut.textContent = m || "—";
+      sizeOut.textContent = s || "—";
+      classOut.textContent = `${b || "—"} · ${m || "—"} · ${s || "—"}`;
+
+      notesOut.textContent = (notes.value || "").trim();
+
+      const st = (status.value || "").trim();
+      statusBar.textContent = st;
+      statusBar.classList.toggle('ok', st === 'IDENTIFICATION');
+      statusBar.classList.toggle('bad', st === 'EXCLUSION');
+    }
+
+    applyBtn.addEventListener('click', apply);
+    [brand, model, size, notes, status].forEach(el=>{
+      el.addEventListener('input', apply);
+      el.addEventListener('change', apply);
+    });
+
+    apply();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `shoe_print_match_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

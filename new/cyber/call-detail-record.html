@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Call Detail Record (CDR)</title>
+
+  <!-- FontAwesome (Icons) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Courier+Prime:wght@400;700&family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --card:#1c1c1c;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      /* CDR Sheet */
+      --paper:#ffffff;
+      --ink:#111111;
+      --grid:#d9d9d9;
+      --zebra:#f9f9f9;
+      --head:#efefef;
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+
+    /* Split Screen Layout */
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT: Control Center */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+
+    .cc-title{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+
+    .input, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .input:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:700;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .ghost{
+      width:100%;
+      border-radius:12px;
+      background:transparent;
+      border:1px solid #3a3a3a;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:600;
+      cursor:pointer;
+    }
+    .ghost:hover{ border-color:var(--red); color:#fff; }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT: Live Preview */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+    }
+
+    /* A4-ish paper */
+    .sheet{
+      width: 980px;
+      background:var(--paper);
+      color:var(--ink);
+      border:1px solid #d0d0d0;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border-radius:8px;
+      padding:18px 18px 14px 18px;
+      font-family:"Courier Prime", monospace;
+    }
+
+    .sheet-header{
+      display:flex;
+      align-items:flex-end;
+      justify-content:space-between;
+      gap:12px;
+      margin-bottom:10px;
+    }
+
+    .provider{
+      display:flex;
+      align-items:center;
+      gap:10px;
+      font-weight:700;
+      font-size:18px;
+      letter-spacing:.04em;
+      text-transform:uppercase;
+    }
+    .provider i{ font-size:18px; }
+
+    .meta{
+      text-align:right;
+      font-size:12px;
+      line-height:1.35;
+      color:#333;
+    }
+    .meta .k{ color:#666; }
+
+    .rule{
+      height:1px;
+      background:#cfcfcf;
+      margin:10px 0 10px 0;
+    }
+
+    /* Dense grid */
+    table{
+      width:100%;
+      border-collapse:collapse;
+      table-layout:fixed;
+      font-size:12px;
+    }
+    thead th{
+      background:var(--head);
+      border:1px solid var(--grid);
+      padding:6px 6px;
+      text-align:left;
+      font-weight:700;
+      white-space:nowrap;
+    }
+    tbody td{
+      border:1px solid var(--grid);
+      padding:5px 6px;
+      vertical-align:top;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+    tbody tr:nth-child(even){
+      background:var(--zebra);
+    }
+
+    /* Column widths to feel like a CSV export */
+    col.date { width: 90px; }
+    col.time { width: 70px; }
+    col.org  { width: 150px; }
+    col.term { width: 150px; }
+    col.dur  { width: 110px; }
+    col.imei { width: 160px; }
+    col.twr  { width: 140px; }
+    col.azi  { width: 90px; }
+
+    .foot{
+      margin-top:10px;
+      font-size:11px;
+      color:#444;
+      line-height:1.35;
+    }
+    .foot .k{ color:#666; }
+
+    /* Responsive */
+    @media (max-width: 1180px){
+      .sheet{ width: 100%; }
+    }
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; }
+    }
+
+    /* Scrollbars */
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT: CONTROL CENTER -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-table"></i> Cyber &amp; Telecom — CDR Export</h2>
+
+      <div class="cc-card">
+        <label class="label" for="providerName">Provider Name</label>
+        <input id="providerName" class="input" type="text" value="N-CELL" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="targetNumber">Target Phone Number</label>
+        <input id="targetNumber" class="input" type="text" value="+977-98XXXXXXXX" />
+
+        <p class="tiny">Header updates instantly. Document is styled like a boring CSV/Excel export.</p>
+      </div>
+
+      <div class="cc-card">
+        <label class="label">Bulk Add (Add rows one by one)</label>
+
+        <div class="row">
+          <div>
+            <label class="label" for="date">Date</label>
+            <input id="date" class="input" type="text" placeholder="YYYY-MM-DD" value="2025-12-28" />
+          </div>
+          <div>
+            <label class="label" for="time">Time</label>
+            <input id="time" class="input" type="text" placeholder="HH:MM:SS" value="16:41:05" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="orig">Originating Number</label>
+        <input id="orig" class="input" type="text" placeholder="+1-555-0100" value="+977-98XXXXXXXX" />
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="term">Terminating Number</label>
+        <input id="term" class="input" type="text" placeholder="+1-555-0199" value="+977-98YYYYYYYY" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="dur">Duration (Sec)</label>
+            <input id="dur" class="input" type="number" min="0" value="42" />
+          </div>
+          <div>
+            <label class="label" for="azi">Azimuth</label>
+            <input id="azi" class="input" type="text" placeholder="e.g., 120" value="120" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="imei">IMEI</label>
+            <input id="imei" class="input" type="text" placeholder="15-digit" value="356789104563210" />
+          </div>
+          <div>
+            <label class="label" for="tower">Cell Tower ID</label>
+            <input id="tower" class="input" type="text" placeholder="TWR-####" value="KTM-NE-0421" />
+          </div>
+        </div>
+
+        <div style="height:12px"></div>
+
+        <div class="row">
+          <button id="addRowBtn" class="btn"><i class="fa-solid fa-plus" style="margin-right:8px"></i>Add Row</button>
+          <button id="clearBtn" class="ghost"><i class="fa-solid fa-trash" style="margin-right:8px"></i>Clear</button>
+        </div>
+
+        <p class="tiny">
+          Enter values, click <b>Add Row</b>. Output stays dense and spreadsheet-like.
+        </p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+
+        <p class="tiny">Exports the CDR sheet (right panel) as evidence.</p>
+      </div>
+    </aside>
+
+    <!-- RIGHT: LIVE PREVIEW -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="sheet" aria-label="CDR CSV Export Preview">
+
+        <div class="sheet-header">
+          <div class="provider">
+            <i class="fa-solid fa-tower-cell"></i>
+            <span id="providerOut">N-CELL</span>
+          </div>
+          <div class="meta">
+            <div><span class="k">Report:</span> CALL DETAIL RECORD (CDR)</div>
+            <div><span class="k">Target:</span> <span id="targetOut">+977-98XXXXXXXX</span></div>
+            <div><span class="k">Exported:</span> <span id="exportedOut">2025-12-28 16:41:05</span></div>
+          </div>
+        </div>
+
+        <div class="rule"></div>
+
+        <table>
+          <colgroup>
+            <col class="date" />
+            <col class="time" />
+            <col class="org" />
+            <col class="term" />
+            <col class="dur" />
+            <col class="imei" />
+            <col class="twr" />
+            <col class="azi" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Time</th>
+              <th>Originating Number</th>
+              <th>Terminating Number</th>
+              <th>Duration (Sec)</th>
+              <th>IMEI</th>
+              <th>Cell Tower ID</th>
+              <th>Azimuth</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr>
+              <td>2025-12-28</td>
+              <td>16:40:11</td>
+              <td>+977-98XXXXXXXX</td>
+              <td>+977-98YYYYYYYY</td>
+              <td>42</td>
+              <td>356789104563210</td>
+              <td>KTM-NE-0421</td>
+              <td>120</td>
+            </tr>
+            <tr>
+              <td>2025-12-28</td>
+              <td>16:33:02</td>
+              <td>+977-98YYYYYYYY</td>
+              <td>+977-98XXXXXXXX</td>
+              <td>18</td>
+              <td>356789104563210</td>
+              <td>KTM-NE-0421</td>
+              <td>118</td>
+            </tr>
+            <tr>
+              <td>2025-12-28</td>
+              <td>15:58:44</td>
+              <td>+977-98XXXXXXXX</td>
+              <td>+977-1-555-0199</td>
+              <td>0</td>
+              <td>356789104563210</td>
+              <td>KTM-NE-0388</td>
+              <td>090</td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div class="foot">
+          <div><span class="k">Note:</span> Fields are formatted to resemble a provider CSV export. Values may be truncated to fit fixed-width columns.</div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // ------- Header bindings -------
+    const providerName = document.getElementById('providerName');
+    const targetNumber = document.getElementById('targetNumber');
+    const providerOut = document.getElementById('providerOut');
+    const targetOut = document.getElementById('targetOut');
+    const exportedOut = document.getElementById('exportedOut');
+
+    function pad(n){ return String(n).padStart(2,'0'); }
+    function nowStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+    }
+
+    function syncHeader(){
+      providerOut.textContent = (providerName.value || "PROVIDER").toUpperCase();
+      targetOut.textContent = targetNumber.value || "";
+      exportedOut.textContent = nowStamp();
+    }
+
+    providerName.addEventListener('input', syncHeader);
+    targetNumber.addEventListener('input', syncHeader);
+    syncHeader();
+
+    // ------- Bulk Add row -------
+    const tbody = document.getElementById('tbody');
+
+    const inDate = document.getElementById('date');
+    const inTime = document.getElementById('time');
+    const inOrig = document.getElementById('orig');
+    const inTerm = document.getElementById('term');
+    const inDur  = document.getElementById('dur');
+    const inImei = document.getElementById('imei');
+    const inTower= document.getElementById('tower');
+    const inAzi  = document.getElementById('azi');
+
+    const addRowBtn = document.getElementById('addRowBtn');
+    const clearBtn = document.getElementById('clearBtn');
+
+    function addRow(){
+      const values = [
+        (inDate.value || "").trim(),
+        (inTime.value || "").trim(),
+        (inOrig.value || "").trim(),
+        (inTerm.value || "").trim(),
+        String(inDur.value ?? "").trim(),
+        (inImei.value || "").trim(),
+        (inTower.value || "").trim(),
+        (inAzi.value || "").trim()
+      ];
+
+      // Minimal guard: require Date & Time to avoid junk rows
+      if(!values[0] || !values[1]) return;
+
+      const tr = document.createElement('tr');
+      values.forEach(v => {
+        const td = document.createElement('td');
+        td.textContent = v;
+        tr.appendChild(td);
+      });
+
+      // Insert newest at top (common export view)
+      tbody.insertBefore(tr, tbody.firstChild);
+    }
+
+    addRowBtn.addEventListener('click', addRow);
+
+    // Enter key adds row if focused in any bulk-add input
+    [inDate,inTime,inOrig,inTerm,inDur,inImei,inTower,inAzi].forEach(el => {
+      el.addEventListener('keydown', (e) => {
+        if(e.key === 'Enter'){
+          e.preventDefault();
+          addRow();
+        }
+      });
+    });
+
+    clearBtn.addEventListener('click', () => {
+      tbody.innerHTML = "";
+    });
+
+    // ------- Export -------
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}_${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: "#ffffff",
+        scale,
+        useCORS: true
+      });
+
+      const base = `cdr_export_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'l', unit:'pt', format:'a4' }); // landscape suits wide tables
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>

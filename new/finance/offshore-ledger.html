@@ -1,0 +1,824 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Evidence Engine — Offshore Ledger</title>
+
+  <!-- FontAwesome -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Courier+Prime:wght@400;700&family=Shadows+Into+Light&display=swap" rel="stylesheet">
+
+  <!-- Export Libraries -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+
+  <style>
+    :root{
+      --bg:#0a0a0a;
+      --panel:#1e1e1e;
+      --text:#e0e0e0;
+      --muted:#b7b7b7;
+      --line:#2a2a2a;
+      --red:#d32f2f;
+
+      --paper:#f4e8c6;        /* aged */
+      --paper2:#efe0b6;       /* warm */
+      --ink:#1b1b1b;
+      --inkSoft: rgba(27,27,27,.82);
+      --grid: rgba(27,27,27,.55);
+      --grid2: rgba(27,27,27,.30);
+      --stain: rgba(130,90,35,.10);
+    }
+
+    *{ box-sizing:border-box; }
+    html,body{ height:100%; }
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+      overflow:hidden;
+    }
+    .app{ display:flex; height:100vh; width:100vw; }
+
+    /* LEFT */
+    .control{
+      width:30%;
+      min-width:320px;
+      background:var(--panel);
+      border-right:1px solid var(--line);
+      padding:22px 18px;
+      overflow:auto;
+    }
+    .cc-title{
+      display:flex; align-items:center; gap:10px;
+      margin:0 0 14px 0;
+      font-family:"Courier Prime", monospace;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      font-size:14px;
+    }
+    .cc-title i{ color:var(--red); }
+
+    .cc-card{
+      background:rgba(255,255,255,.02);
+      border:1px solid var(--line);
+      border-radius:14px;
+      padding:16px;
+      margin-bottom:14px;
+      box-shadow:0 10px 20px rgba(0,0,0,.25);
+    }
+    .label{
+      display:block;
+      color:var(--muted);
+      font-size:12px;
+      margin-bottom:6px;
+      letter-spacing:.02em;
+    }
+    .input, .textarea, .select{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#121212;
+      color:var(--text);
+      padding:12px 12px;
+      outline:none;
+      font-size:14px;
+      font-family:Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+    .textarea{ min-height:86px; resize:vertical; }
+    .input:focus, .textarea:focus, .select:focus{
+      border-color:var(--red);
+      box-shadow:0 0 0 3px rgba(211,47,47,.18);
+    }
+    .row{ display:flex; gap:10px; }
+    .row > *{ flex:1; }
+
+    .btn{
+      width:100%;
+      border:none;
+      border-radius:12px;
+      background:linear-gradient(180deg, rgba(211,47,47,.9), rgba(211,47,47,.75));
+      color:#fff;
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+      letter-spacing:.02em;
+    }
+    .btn:hover{ filter:brightness(1.05); }
+    .btn:active{ transform:translateY(1px); }
+
+    .btnGhost{
+      width:100%;
+      border-radius:12px;
+      border:1px solid #303030;
+      background:#141414;
+      color:var(--text);
+      padding:12px 14px;
+      font-weight:800;
+      cursor:pointer;
+    }
+    .btnGhost:hover{ border-color:var(--red); }
+
+    .tiny{
+      font-size:12px;
+      color:var(--muted);
+      line-height:1.5;
+      margin:10px 0 0 0;
+    }
+
+    /* RIGHT */
+    .preview-wrap{
+      width:70%;
+      overflow:auto;
+      padding:28px;
+      background:#0b0b0b;
+      display:flex;
+      justify-content:center;
+      align-items:flex-start;
+    }
+
+    /* Ledger page */
+    .paper{
+      width: 820px;
+      min-height: 1120px;
+      border-radius:10px;
+      box-shadow:0 18px 45px rgba(0,0,0,.55);
+      border:1px solid rgba(255,255,255,.10);
+      position:relative;
+      padding:22px;
+      color:var(--ink);
+
+      /* Aged texture */
+      background:
+        radial-gradient(180px 140px at 18% 22%, rgba(130,90,35,.12), transparent 60%),
+        radial-gradient(220px 170px at 82% 34%, rgba(130,90,35,.10), transparent 62%),
+        radial-gradient(260px 220px at 60% 78%, rgba(130,90,35,.11), transparent 64%),
+        radial-gradient(160px 120px at 30% 86%, rgba(130,90,35,.08), transparent 60%),
+        linear-gradient(180deg, var(--paper), var(--paper2));
+      overflow:hidden;
+    }
+
+    /* Fine paper grain + faint scribble */
+    .paper:before{
+      content:"";
+      position:absolute;
+      inset:0;
+      background:
+        repeating-linear-gradient(0deg, rgba(0,0,0,.018) 0px, rgba(0,0,0,.018) 1px, transparent 1px, transparent 3px),
+        repeating-linear-gradient(90deg, rgba(0,0,0,.012) 0px, rgba(0,0,0,.012) 1px, transparent 1px, transparent 4px);
+      opacity:.45;
+      mix-blend-mode:multiply;
+      pointer-events:none;
+    }
+
+    .doc{
+      position:relative;
+      z-index:1;
+      border:2px solid rgba(27,27,27,.55);
+      padding:18px 18px 16px;
+      border-radius:10px;
+      background: rgba(255,255,255,.05);
+    }
+
+    .header{
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      border-bottom: 2px solid rgba(27,27,27,.55);
+      padding-bottom:10px;
+      margin-bottom:12px;
+    }
+
+    .hLeft{
+      min-width:0;
+    }
+
+    .title{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-size:14px;
+      color:rgba(27,27,27,.92);
+    }
+    .subtitle{
+      margin-top:6px;
+      font-family:"Courier Prime", monospace;
+      font-size:12px;
+      letter-spacing:.08em;
+      text-transform:uppercase;
+      color:rgba(27,27,27,.72);
+    }
+
+    .stamp{
+      font-family:"Courier Prime", monospace;
+      font-weight:900;
+      font-size:11px;
+      letter-spacing:.12em;
+      text-transform:uppercase;
+      padding:10px 12px;
+      border:2px solid rgba(27,27,27,.55);
+      border-radius:8px;
+      transform: rotate(-3deg);
+      background: rgba(255,255,255,.16);
+      color: rgba(27,27,27,.85);
+      white-space:nowrap;
+    }
+
+    /* Handwritten vibe toggle */
+    .hand{
+      font-family:"Shadows Into Light", cursive;
+      letter-spacing:.02em;
+      font-size:18px;
+      color: rgba(27,27,27,.88);
+    }
+
+    /* Table with "hand-drawn" feel (double borders + slight wobble) */
+    table{
+      width:100%;
+      border-collapse:separate;
+      border-spacing:0;
+      font-size:13px;
+      margin-top:10px;
+      font-family:"Courier Prime", monospace;
+      color: rgba(27,27,27,.90);
+    }
+
+    thead th{
+      background: rgba(255,255,255,.22);
+      font-size:11px;
+      letter-spacing:.14em;
+      text-transform:uppercase;
+      font-weight:900;
+      padding:10px 10px;
+      border-top:2px double rgba(27,27,27,.55);
+      border-bottom:2px double rgba(27,27,27,.55);
+    }
+    thead th:first-child{ border-left:2px double rgba(27,27,27,.55); border-top-left-radius:10px; }
+    thead th:last-child{ border-right:2px double rgba(27,27,27,.55); border-top-right-radius:10px; }
+
+    tbody td{
+      padding:10px 10px;
+      border-bottom:1px solid rgba(27,27,27,.40);
+      border-left:1px solid rgba(27,27,27,.40);
+      vertical-align:top;
+      position:relative;
+    }
+    tbody tr td:last-child{ border-right:1px solid rgba(27,27,27,.40); }
+
+    /* slight "wobble" illusion using faint offset shadow line */
+    tbody td:after{
+      content:"";
+      position:absolute;
+      left:0; right:0; bottom:-1px;
+      height:1px;
+      background: rgba(27,27,27,.18);
+      transform: translateY(1px);
+      pointer-events:none;
+    }
+
+    tbody tr:nth-child(even) td{
+      background: rgba(255,255,255,.10);
+    }
+
+    .num{
+      text-align:right;
+      white-space:nowrap;
+    }
+    .notes{
+      color: rgba(27,27,27,.78);
+    }
+
+    .footer{
+      margin-top:12px;
+      display:flex;
+      justify-content:space-between;
+      gap:12px;
+      border-top: 1px dashed rgba(27,27,27,.45);
+      padding-top:10px;
+      font-family:"Courier Prime", monospace;
+      font-size:11px;
+      color: rgba(27,27,27,.72);
+    }
+
+    .hint{
+      margin-top:12px;
+      font-size:12px;
+      color: rgba(27,27,27,.72);
+      line-height:1.55;
+      font-family: Roboto, system-ui, -apple-system, Segoe UI, Arial, sans-serif;
+    }
+
+    @media (max-width: 860px){
+      body{ overflow:auto; }
+      .app{ flex-direction:column; height:auto; }
+      .control, .preview-wrap{ width:100%; }
+      .preview-wrap{ padding:16px; justify-content:flex-start; }
+      .paper{ width:100%; min-height:auto; }
+    }
+
+    .control::-webkit-scrollbar, .preview-wrap::-webkit-scrollbar { width:10px; }
+    .control::-webkit-scrollbar-thumb, .preview-wrap::-webkit-scrollbar-thumb{
+      background:#2a2a2a;
+      border-radius:10px;
+      border:2px solid transparent;
+      background-clip:content-box;
+    }
+    .control::-webkit-scrollbar-thumb:hover, .preview-wrap::-webkit-scrollbar-thumb:hover{
+      background:#3a3a3a;
+      background-clip:content-box;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- LEFT -->
+    <aside class="control">
+      <h2 class="cc-title"><i class="fa-solid fa-book-skull"></i> Financial Intel — Offshore Ledger</h2>
+
+      <div class="cc-card">
+        <label class="label" for="headerIn">Header Title</label>
+        <input id="headerIn" class="input" type="text" value="CONFIDENTIAL ACCOUNTS - GRAND CAYMAN" />
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="bookCodeIn">Ledger Code / Book No.</label>
+            <input id="bookCodeIn" class="input" type="text" value="BOOK-07" />
+          </div>
+          <div>
+            <label class="label" for="fontModeIn">Writing Style</label>
+            <select id="fontModeIn" class="select">
+              <option value="typed" selected>Typed (Courier)</option>
+              <option value="hand">Handwritten</option>
+            </select>
+          </div>
+        </div>
+
+        <p class="tiny">Click any row in the preview to edit / delete / duplicate it.</p>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="clientIn">Client Code</label>
+            <input id="clientIn" class="input" type="text" value="BARRACUDA" />
+          </div>
+          <div>
+            <label class="label" for="dateIn">Deposit Date (DD/MM/YY)</label>
+            <input id="dateIn" class="input" type="text" value="30/12/25" />
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <div>
+            <label class="label" for="amountIn">Amount</label>
+            <input id="amountIn" class="input" type="text" value="2500000" />
+          </div>
+          <div>
+            <label class="label" for="currencyIn">Currency</label>
+            <select id="currencyIn" class="select">
+              <option value="USD" selected>USD</option>
+              <option value="GBP">GBP</option>
+              <option value="EUR">EUR</option>
+              <option value="KYD">KYD</option>
+              <option value="CHF">CHF</option>
+              <option value="Custom">Custom</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <label class="label" for="notesIn">Notes</label>
+        <input id="notesIn" class="input" type="text" value="Cleaned via Shell Co." />
+
+        <div style="height:12px"></div>
+
+        <button id="addRow" class="btn">
+          <i class="fa-solid fa-plus" style="margin-right:8px;"></i>
+          Add Entry
+        </button>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="demoRows" class="btnGhost">
+            <i class="fa-solid fa-bolt" style="margin-right:8px;"></i>
+            Random Demo Entries
+          </button>
+          <button id="clearRows" class="btnGhost">
+            <i class="fa-solid fa-trash" style="margin-right:8px;"></i>
+            Clear Entries
+          </button>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <div class="row">
+          <button id="exportJson" class="btnGhost">
+            <i class="fa-solid fa-floppy-disk" style="margin-right:8px;"></i>
+            Export JSON
+          </button>
+          <button id="importJson" class="btnGhost">
+            <i class="fa-solid fa-file-import" style="margin-right:8px;"></i>
+            Import JSON
+          </button>
+        </div>
+      </div>
+
+      <div class="cc-card">
+        <div class="row">
+          <div>
+            <label class="label" for="exportType">Export Type</label>
+            <select id="exportType" class="select">
+              <option value="jpg">High-res JPG</option>
+              <option value="pdf">PDF</option>
+            </select>
+          </div>
+          <div>
+            <label class="label" for="exportScale">Quality</label>
+            <select id="exportScale" class="select">
+              <option value="2">Standard</option>
+              <option value="3" selected>High</option>
+              <option value="4">Ultra</option>
+            </select>
+          </div>
+        </div>
+
+        <div style="height:10px"></div>
+
+        <button id="downloadBtn" class="btn">
+          <i class="fa-solid fa-download" style="margin-right:8px"></i>
+          Download Evidence
+        </button>
+      </div>
+    </aside>
+
+    <!-- RIGHT -->
+    <main class="preview-wrap">
+      <section id="captureArea" class="paper" aria-label="Offshore ledger preview">
+        <div class="doc">
+          <div class="header">
+            <div class="hLeft">
+              <div class="title" id="headerOut">CONFIDENTIAL ACCOUNTS - GRAND CAYMAN</div>
+              <div class="subtitle">Ledger Ref: <span id="bookOut">BOOK-07</span></div>
+            </div>
+            <div class="stamp"><i class="fa-solid fa-triangle-exclamation" style="margin-right:8px;"></i>RESTRICTED</div>
+          </div>
+
+          <table aria-label="Ledger table">
+            <thead>
+              <tr>
+                <th style="width:18%;">Client Code</th>
+                <th style="width:16%;">Deposit Date</th>
+                <th style="width:18%;" class="num">Amount</th>
+                <th>Notes</th>
+              </tr>
+            </thead>
+            <tbody id="rowsOut"></tbody>
+          </table>
+
+          <div class="hint">
+            Ledger entries may be incomplete or coded. This document is presented as recovered financial evidence.
+          </div>
+
+          <div class="footer">
+            <div>Archive Tag: <span id="archiveTagOut">GC-LEDGER</span></div>
+            <div>Do not distribute • Internal only</div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+  </div>
+
+  <script>
+    // Inputs
+    const headerIn = document.getElementById('headerIn');
+    const bookCodeIn = document.getElementById('bookCodeIn');
+    const fontModeIn = document.getElementById('fontModeIn');
+
+    const clientIn = document.getElementById('clientIn');
+    const dateIn = document.getElementById('dateIn');
+    const amountIn = document.getElementById('amountIn');
+    const currencyIn = document.getElementById('currencyIn');
+    const notesIn = document.getElementById('notesIn');
+
+    const addRow = document.getElementById('addRow');
+    const demoRows = document.getElementById('demoRows');
+    const clearRows = document.getElementById('clearRows');
+
+    const exportJson = document.getElementById('exportJson');
+    const importJson = document.getElementById('importJson');
+
+    // Outputs
+    const headerOut = document.getElementById('headerOut');
+    const bookOut = document.getElementById('bookOut');
+    const rowsOut = document.getElementById('rowsOut');
+
+    function sanitize(s){ return (s ?? '').toString().trim(); }
+
+    function parseNum(s){
+      const n = Number(String(s).replace(/[$,]/g,'').trim());
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function fmtAmount(n, ccy){
+      const v = Number(n);
+      if(!Number.isFinite(v)) return "—";
+      const sym = currencySymbol(ccy);
+      return sym + v.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    }
+
+    function currencySymbol(ccy){
+      const c = (ccy || "USD").toUpperCase();
+      if(c === "USD") return "$";
+      if(c === "GBP") return "£";
+      if(c === "EUR") return "€";
+      if(c === "CHF") return "CHF ";
+      if(c === "KYD") return "CI$";
+      if(c === "CUSTOM") return "";
+      return c + " ";
+    }
+
+    // State: entries
+    let entries = []; // {client, date, amount, currency, notes}
+
+    function applyFontMode(){
+      const mode = fontModeIn.value;
+      const table = rowsOut.closest('table');
+      if(mode === "hand"){
+        table.classList.add('hand');
+      } else {
+        table.classList.remove('hand');
+      }
+    }
+
+    function render(){
+      headerOut.textContent = sanitize(headerIn.value) || "—";
+      bookOut.textContent = sanitize(bookCodeIn.value) || "—";
+      applyFontMode();
+
+      rowsOut.innerHTML = "";
+      if(entries.length === 0){
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td colspan="4" style="padding:14px; color: rgba(27,27,27,.70); font-family: Roboto, sans-serif;">
+            No entries. Add an entry from the Control Center.
+          </td>`;
+        rowsOut.appendChild(tr);
+        return;
+      }
+
+      entries.forEach((e, idx)=>{
+        const tr = document.createElement('tr');
+        tr.dataset.idx = String(idx);
+        tr.title = "Click to edit/delete/duplicate";
+        tr.innerHTML = `
+          <td>${escapeHtml(e.client)}</td>
+          <td>${escapeHtml(e.date)}</td>
+          <td class="num">${escapeHtml(fmtAmount(e.amount, e.currency))}</td>
+          <td class="notes">${escapeHtml(e.notes)}</td>
+        `;
+        rowsOut.appendChild(tr);
+      });
+    }
+
+    function escapeHtml(str){
+      return String(str)
+        .replaceAll("&","&amp;")
+        .replaceAll("<","&lt;")
+        .replaceAll(">","&gt;")
+        .replaceAll('"',"&quot;")
+        .replaceAll("'","&#039;");
+    }
+
+    function addEntry(client, date, amount, currency, notes){
+      const c = sanitize(client) || "CLIENT";
+      const d = sanitize(date) || "—";
+      const a = parseNum(amount);
+      if(a === null) return;
+
+      entries.push({
+        client: c.toUpperCase(),
+        date: d,
+        amount: a,
+        currency: sanitize(currency) || "USD",
+        notes: sanitize(notes) || ""
+      });
+      render();
+    }
+
+    addRow.addEventListener('click', ()=>{
+      addEntry(clientIn.value, dateIn.value, amountIn.value, currencyIn.value, notesIn.value);
+    });
+
+    clearRows.addEventListener('click', ()=>{
+      entries = [];
+      render();
+    });
+
+    demoRows.addEventListener('click', ()=>{
+      const clients = ["BARRACUDA","MANTA","CORAL","KRAKEN","SEABIRD","ORCHID","VIOLET","CAYMAN-7","ANCHOR","SABLE"];
+      const notesPool = [
+        "Cleaned via Shell Co.",
+        "Converted through nominee",
+        "Split into three wires",
+        "Hold for release order",
+        "Rebooked under new code",
+        "Disbursed to Trust",
+        "Invoice cover created",
+        "Ledger corrected (no audit)",
+        "Cash equivalent posted",
+        "Routed via intermediary"
+      ];
+      const currencies = ["USD","GBP","EUR","KYD","CHF"];
+      function pick(a){ return a[Math.floor(Math.random()*a.length)]; }
+      function randAmt(min,max){ return +(Math.random()*(max-min)+min).toFixed(2); }
+      function randDate(){
+        const dd = String(Math.floor(Math.random()*28)+1).padStart(2,'0');
+        const mm = String(Math.floor(Math.random()*12)+1).padStart(2,'0');
+        const yy = String(Math.floor(Math.random()*6)+20).padStart(2,'0'); // 20-25
+        return `${dd}/${mm}/${yy}`;
+      }
+
+      const count = Math.floor(Math.random()*6)+6; // 6-11
+      for(let i=0;i<count;i++){
+        addEntry(pick(clients), randDate(), randAmt(150000, 9500000), pick(currencies), pick(notesPool));
+      }
+      render();
+    });
+
+    // Click row to edit/delete/duplicate
+    rowsOut.addEventListener('click', (ev)=>{
+      const tr = ev.target.closest('tr');
+      if(!tr || tr.dataset.idx == null) return;
+      const idx = Number(tr.dataset.idx);
+      if(!Number.isFinite(idx) || !entries[idx]) return;
+
+      const cur = entries[idx];
+      const action = prompt(
+        `Row action (type one):\n- edit\n- delete\n- duplicate\n\nCurrent:\n${cur.client} | ${cur.date} | ${cur.amount} ${cur.currency} | ${cur.notes}`
+      );
+      if(!action) return;
+      const a = action.trim().toLowerCase();
+
+      if(a === "delete"){
+        entries.splice(idx,1);
+        render();
+        return;
+      }
+      if(a === "duplicate"){
+        entries.splice(idx+1,0,{...cur});
+        render();
+        return;
+      }
+      if(a === "edit"){
+        const nc = prompt("Client Code:", cur.client);
+        if(nc === null) return;
+        const nd = prompt("Deposit Date (DD/MM/YY):", cur.date);
+        if(nd === null) return;
+        const na = prompt("Amount (number):", String(cur.amount));
+        if(na === null) return;
+        const nccy = prompt("Currency (USD/GBP/EUR/KYD/CHF or custom):", cur.currency);
+        if(nccy === null) return;
+        const nn = prompt("Notes:", cur.notes);
+        if(nn === null) return;
+
+        const parsed = parseNum(na);
+        if(parsed === null){ alert("Invalid amount."); return; }
+
+        entries[idx] = {
+          client: sanitize(nc).toUpperCase() || "CLIENT",
+          date: sanitize(nd) || "—",
+          amount: parsed,
+          currency: sanitize(nccy) || "USD",
+          notes: sanitize(nn) || ""
+        };
+        render();
+      }
+    });
+
+    // Header live update
+    [headerIn, bookCodeIn, fontModeIn].forEach(el=>{
+      el.addEventListener('input', render);
+      el.addEventListener('change', render);
+    });
+
+    // JSON Save/Load
+    function getState(){
+      return {
+        header: headerIn.value,
+        bookCode: bookCodeIn.value,
+        fontMode: fontModeIn.value,
+        entries
+      };
+    }
+    function setState(s){
+      if(!s || typeof s !== "object") return;
+      headerIn.value = s.header ?? headerIn.value;
+      bookCodeIn.value = s.bookCode ?? bookCodeIn.value;
+      fontModeIn.value = s.fontMode ?? fontModeIn.value;
+      if(Array.isArray(s.entries)) entries = s.entries;
+      render();
+    }
+
+    exportJson.addEventListener('click', async ()=>{
+      const json = JSON.stringify(getState(), null, 2);
+      try{
+        await navigator.clipboard.writeText(json);
+        alert("Copied JSON to clipboard.");
+      }catch(e){
+        prompt("Copy your JSON:", json);
+      }
+    });
+
+    importJson.addEventListener('click', ()=>{
+      const raw = prompt("Paste saved JSON here:");
+      if(!raw) return;
+      try{
+        const obj = JSON.parse(raw);
+        setState(obj);
+      }catch(e){
+        alert("Invalid JSON.");
+      }
+    });
+
+    // Init
+    render();
+
+    // Export
+    const downloadBtn = document.getElementById('downloadBtn');
+    const exportType = document.getElementById('exportType');
+    const exportScale = document.getElementById('exportScale');
+    const captureArea = document.getElementById('captureArea');
+
+    function pad2(n){ return String(n).padStart(2,'0'); }
+    function fileStamp(){
+      const d = new Date();
+      return `${d.getFullYear()}${pad2(d.getMonth()+1)}${pad2(d.getDate())}_${pad2(d.getHours())}${pad2(d.getMinutes())}${pad2(d.getSeconds())}`;
+    }
+
+    async function exportEvidence(){
+      const type = exportType.value;
+      const scale = Number(exportScale.value || 3);
+
+      const canvas = await html2canvas(captureArea, {
+        backgroundColor: null, // keep paper tone
+        scale,
+        useCORS: true
+      });
+
+      const base = `offshore_ledger_${fileStamp()}`;
+
+      if(type === 'jpg'){
+        const url = canvas.toDataURL('image/jpeg', 0.95);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `${base}.jpg`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        return;
+      }
+
+      const { jsPDF } = window.jspdf;
+      const pdf = new jsPDF({ orientation:'p', unit:'pt', format:'a4' });
+
+      const imgData = canvas.toDataURL('image/jpeg', 0.95);
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const margin = 22;
+
+      const imgW = canvas.width;
+      const imgH = canvas.height;
+
+      const maxW = pageW - margin * 2;
+      const maxH = pageH - margin * 2;
+
+      const ratio = Math.min(maxW / imgW, maxH / imgH);
+      const drawW = imgW * ratio;
+      const drawH = imgH * ratio;
+
+      const x = (pageW - drawW) / 2;
+      const y = (pageH - drawH) / 2;
+
+      pdf.addImage(imgData, 'JPEG', x, y, drawW, drawH);
+      pdf.save(`${base}.pdf`);
+    }
+
+    downloadBtn.addEventListener('click', exportEvidence);
+  </script>
+</body>
+</html>
